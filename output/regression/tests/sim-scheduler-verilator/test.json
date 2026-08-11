@@ -1,0 +1,22 @@
+{
+  "comment": "Verilator scheduler contract: VPI-only timers keep the run alive, phase callbacks fire in order, VPI writes are evaluated to a fixed point before ReadOnly, and start/finish complete the regression. Four-state-only signal cases remain Icarus reference tests.",
+  "cmd": ["bash", "rustdv/framework-tests/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "env": {
+    "SIM": "verilator",
+    "RUSTDV_TESTCASE": "trig_,clock_,conc_,elab_,runner_,sig_widths,sig_round_trips,sig_truncates,sig_reads,sig_missing"
+  },
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "rustdv: found 37 test(s)",
+    "trig_timer_advances_exactly PASSED",
+    "trig_earliest_rtl_or_vpi_deadline_wins PASSED",
+    "trig_at_end_write_settles_before_read_only PASSED",
+    "trig_read_only_sees_settled_rtl PASSED",
+    "REGRESSION: PASS",
+    "RTL FINAL: PASS",
+    "END OF SIMULATION CALLBACK: PASS"
+  ]
+}

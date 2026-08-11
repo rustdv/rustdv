@@ -2,7 +2,7 @@
 name = "rustdv-vpi-stubs"
 version = "0.1.0"
 edition = "2021"
-description = "Panicking vpi_* symbol definitions for cargo-test executables. Dev-dependency only — never linked into the simulator-loaded cdylib, where the real symbols come from the simulator."
+description = "VPI symbol definitions and callback test double for cargo-test executables. Dev-dependency only — never linked into simulator-loaded cdylibs."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rustdv/rustdv"
 
@@ -11,3 +11,4 @@ repository = "https://github.com/rustdv/rustdv"
 path = "src/rustdv_vpi_stubs.rs"
 
 [dependencies]
+rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.1.0" }

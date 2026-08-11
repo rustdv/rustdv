@@ -120,10 +120,10 @@ impl LogicHandle {
     }
     /// Convenience for 1-bit signals: true iff the value is 1.
     pub fn is_high(&self) -> bool {
-        self.raw.get_binstr() == "1"
+        self.size() == 1 && self.raw.get_u64() == Ok(1)
     }
     pub fn is_low(&self) -> bool {
-        self.raw.get_binstr() == "0"
+        self.size() == 1 && self.raw.get_u64() == Ok(0)
     }
 
     // ---- write: scheduled (applied at next ReadWrite phase, row 22) ----

@@ -4,9 +4,7 @@
 # Usage:  sim/run_smoke.sh [icarus|verilator|vcs|questa|xcelium]
 #         (or set SIM=...; the argument wins)
 #
-# Success criterion: prints "SMOKE: PASS" (Icarus & commercial sims run the
-# testbench; Verilator currently lints the DUT and prints "LINT: PASS" —
-# full Verilator simulation arrives with rustdv).
+# Success criterion: prints "SMOKE: PASS".
 set -euo pipefail
 cd "$(dirname "$0")"
 SIM="${1:-${SIM:-icarus}}"
@@ -38,8 +36,9 @@ case "$SIM" in
     # %Error-NEEDTIMINGOPT. Newer builds are lenient, which is exactly how this
     # reached CI green locally and red on Debian's 5.020 — the flag makes the
     # answer explicit on every version instead of version-dependent.
-    verilator --lint-only -sv --timing --top-module tinyalu "$HDL" -Mdir "$BUILD/obj_dir"
-    echo "LINT: PASS"
+    verilator --binary -sv --timing --top-module smoke_tb \
+      --Mdir "$BUILD/obj_dir" -o smoke "$TS" "$HDL" "$TB"
+    "$BUILD/obj_dir/smoke"
     ;;
   vcs)        # Synopsys — requires a license; untested in this repo's CI
     vcs -full64 -sverilog -o "$BUILD/simv" "$TS" "$HDL" "$TB"

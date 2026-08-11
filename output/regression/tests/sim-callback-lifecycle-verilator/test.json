@@ -1,0 +1,20 @@
+{
+  "comment": "One million ReadOnly/NextTimeStep iterations must reach an RSS plateau after fired one-shot VPI handles are released.",
+  "cmd": ["bash", "rustdv/framework-tests/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "env": {
+    "SIM": "verilator",
+    "RUSTDV_TESTCASE": "callback_stress_",
+    "RUSTDV_CALLBACK_STRESS_CYCLES": "1000000",
+    "RUSTDV_CALLBACK_STRESS_MAX_RSS_GROWTH_KIB": "16384"
+  },
+  "expect_exit": 0,
+  "timeout": 900,
+  "expect_in_output": [
+    "rustdv: found 1 test(s)",
+    "CALLBACK STRESS: cycles=1000000",
+    "callback_stress_one_shot_handles_plateau PASSED",
+    "REGRESSION: PASS"
+  ]
+}

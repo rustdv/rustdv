@@ -8,6 +8,7 @@ Run with:
 
 ```
 sim/run_rustdv.sh          # or: sim/run_rustdv.sh release
+sim/run_rustdv.sh release verilator
 ```
 
 Its files are `tinyalu_tb.rs` (crate root — there is no `lib.rs`, D29), `env.rs`,
@@ -19,7 +20,7 @@ operation covered.
 
 ## Transcript
 
-Verbatim from `sim/run_rustdv.sh release`, `RUSTDV_RANDOM_SEED=1`, Linux/Icarus,
+Verbatim from `sim/run_rustdv.sh release icarus`, `RUSTDV_RANDOM_SEED=1`, Linux/Icarus,
 2026-07-30. This is the block the Interlude and ch40 both draw from; the cargo
 build lines above the first `0.00ns` are omitted.
 

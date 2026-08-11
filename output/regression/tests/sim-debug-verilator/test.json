@@ -1,0 +1,9 @@
+{
+  "comment": "Verilator DEBUG policy: top ports plus the selected TinyALU internals in sim/verilator-debug.vlt, with a non-empty FST. FAST and framework visibility are covered by their own entries.",
+  "cmd": ["bash", "output/regression/tests/sim-debug-verilator/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": ["REGRESSION: PASS", "FST: PASS"]
+}

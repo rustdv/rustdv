@@ -3,6 +3,7 @@ module tinyalu (input [7:0] A,
 		input [2:0] op,
 		input reset_n,
 		input start,
+		output bit clk,
 		output done,
 		output [15:0] result);
 
@@ -10,7 +11,6 @@ module tinyalu (input [7:0] A,
    // it must on an emulator, where a software-driven clock would cross the
    // hardware boundary on every edge. rustdv generates no clock; BFMs only
    // ever wait on edges. 10ns period at the 1ns/1ns timescale.
-   bit clk;
    initial clk = 0;
    always #5 clk = ~clk;
 

@@ -76,8 +76,9 @@ If you know the UVM, this is the whole translation table.
 
 ## Installation
 
-You need **Rust** and a simulator. rustdv is developed and tested against
-**Icarus Verilog**. This repository pins its toolchain in
+You need **Rust** and a simulator. rustdv uses **Icarus Verilog** as its
+four-state reference and supports **Verilator** for fast two-state functional
+simulation. This repository pins its Rust toolchain in
 [`rust-toolchain.toml`](rust-toolchain.toml), so `rustup` fetches the right
 compiler on its own.
 
@@ -124,11 +125,13 @@ from chapter 18 onward, and the shipped testbench for it is in
 
 ```sh
 sim/run_rustdv.sh
+sim/run_rustdv.sh release verilator
 ```
 
-That builds the testbench as a shared library, compiles the DUT with Icarus,
-and hands the library to `vvp`. There is no Verilog testbench: rustdv drives
-the top module directly.
+Both commands build the same testbench shared library and load it through VPI.
+The first uses Icarus; the second builds the DUT with Verilator and runs it
+through rustdv's shared Verilator host. There is no Verilog testbench: rustdv
+drives the top module directly.
 
 Two tests run. `RandomTest` sends random operands across every operation five
 times each; `MaxTest` sends `0xff op 0xff` once per operation. Here is the
@@ -786,7 +789,7 @@ asserted here.
 | | Status |
 |---|---|
 | Icarus Verilog | full simulation; runs in CI, and every transcript in the book comes from it |
-| Verilator | lints in CI |
+| Verilator | full two-state simulation; FAST, DEBUG/FST, scheduler, and mutation paths run in CI |
 | VCS / Questa / Xcelium | same script (`sim/run_smoke.sh vcs\|questa\|xcelium`); licenses can't live in public CI, so license-holders run the identical regression locally |
 | EDA Playground | HDL side only — it has no Rust toolchain; see [sim/README.md](sim/README.md) |
 

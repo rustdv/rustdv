@@ -1,0 +1,8 @@
+`verilator_config
+
+// TinyALU DEBUG-mode instrumentation. Top-level ports, including clk, are
+// visible without directives; these are selected implementation signals.
+public_flat_rw -module "tinyalu" -var "result_aax"
+public_flat_rw -module "tinyalu" -var "result_mult"
+public_flat_rw -module "tinyalu" -var "start_single"
+public_flat_rw -module "tinyalu" -var "start_mult"

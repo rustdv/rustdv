@@ -146,8 +146,8 @@ impl Future for Edge {
                         }
                         let hit = match kind {
                             EdgeKind::AnyChange => true,
-                            EdgeKind::Rising => sig.get_binstr() == "1",
-                            EdgeKind::Falling => sig.get_binstr() == "0",
+                            EdgeKind::Rising => sig.size() == 1 && sig.get_u64() == Ok(1),
+                            EdgeKind::Falling => sig.size() == 1 && sig.get_u64() == Ok(0),
                         };
                         if hit {
                             sh2.fire();

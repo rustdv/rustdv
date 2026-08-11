@@ -1,0 +1,10 @@
+{
+  "comment": "Verilator counterpart of the TinyALU XOR-to-OR mutation test: both scoreboards must fail on corrupt RTL and pass on the real RTL. This also pins the shell verdict check until the host has a simulator-independent result API.",
+  "cmd": ["bash", "output/regression/tests/sim-mutation/mutate.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "env": { "SIM": "verilator" },
+  "expect_exit": 0,
+  "timeout": 900,
+  "expect_in_output": ["MUTATION: CAUGHT"]
+}

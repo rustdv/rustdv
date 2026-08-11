@@ -79,11 +79,11 @@ regression.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs two jobs on every push and PR: the full
-regression suite (Rust toolchain, no simulators — sim tests skip), and the
-simulator smoke tests on Icarus + Verilator. Commercial simulators can't run
-in public CI; license-holders run `sim/run_smoke.sh <sim>` or the same
-regress command locally.
+`.github/workflows/ci.yml` runs the full no-simulator regression plus a
+free-simulator matrix. Linux runs the Icarus and Verilator entries; macOS
+repeats the Verilator runtime, scheduler, DEBUG/FST, and mutation entries.
+Commercial simulators cannot run in public CI; license-holders run
+`sim/run_smoke.sh <sim>` locally.
 
 The rule of thumb: **every new piece of functionality lands together with the
 test that would catch its removal.** The pre-push hook then makes it
@@ -138,6 +138,12 @@ TinyALU's XOR to an OR, requires two testbenches to **fail**, then requires
 both to pass again on the real RTL. A scoreboard that cannot fail is not a
 scoreboard.
 
+The Verilator entries add a host-scheduler contract, the full TinyALU Rust
+testbench, selected-internal DEBUG/FST output, and the same mutation check.
+The scheduler test proves that VPI-only timers keep the model alive, the
+earlier of RTL and VPI deadlines wins, a ReadWrite VPI write settles through
+combinational RTL before ReadOnly, and final/end-of-simulation hooks run.
+
 **Compile-fail — `rustdv/framework-tests/compile-fail/`.** Claims the book
 makes about what the compiler rejects. Each case asserts its `error[E….]`
 code, not merely that the build failed; without the code a case that started
@@ -157,10 +163,10 @@ Both are properties of the runner, not quirks of these tests:
   visible: a test that follows a ReadOnly-ending test starts one step later
   than its own arithmetic suggests, so measure elapsed time between two
   `sim_time_ns()` reads rather than from an assumed start.
-- **vvp exits when its event queue empties.** A test with no clock and no
+- **A simulator exits when every relevant event queue empties.** A test with no clock and no
   pending timer that awaits `next_time_step()` will not be woken — the
   simulator quits and the rest of the regression never runs. Keep a clock or a
-  timer alive.
+  timer alive. The Verilator host considers both RTL events and VPI deadlines.
 
 ### Adding a `test.json` option
 

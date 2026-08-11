@@ -16,6 +16,10 @@ the `custom/sim-chNN` regression tests. Shared testbench code lives in
 compile errors, 3 intentional panics, 1 unit-test figure, 3 non-runnable
 fragments, 2 Python contrast figures, and 6 shell transcripts.
 
+Icarus remains the source of the book's four-state transcripts. Set
+`SIM=verilator` when using `sim-common/run_sim.sh` to run the same Rust
+testbench in Verilator's faster two-state mode.
+
 ## Naming convention
 
 ```

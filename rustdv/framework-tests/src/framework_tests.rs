@@ -23,7 +23,9 @@
 //! Each module prefixes its test names, and the regression selects a group
 //! with `RUSTDV_TESTCASE`. So `sim-triggers` and `sim-concurrency` are
 //! separate lines in the regression report but share one build and one
-//! elaboration.
+//! elaboration. The long `callback_stress_` group is selected only by its
+//! dedicated Verilator regression; an unfiltered manual run uses its short
+//! default cycle count.
 //!
 //! | prefix | module | what it pins down |
 //! |---|---|---|
@@ -33,6 +35,7 @@
 //! | `conc_` | [`concurrency`] | the D82 family, against real time |
 //! | `elab_` | [`elaboration`] | unconnected ports fail before the run phase |
 //! | `runner_` | [`runner`] | timeouts, `expect_error`, per-test freshness |
+//! | `callback_stress_` | [`callback_lifecycle`] | fired one-shot handles reach an RSS plateau |
 //!
 //! The DUT is `hdl/probe.sv`: a clock, signals of known widths that nothing
 //! drives, and one counter so an edge trigger has something to trigger on.
@@ -69,12 +72,13 @@ macro_rules! check {
     };
 }
 
-pub mod triggers;
+pub mod callback_lifecycle;
 pub mod clocks;
-pub mod signals;
 pub mod concurrency;
 pub mod elaboration;
 pub mod runner;
+pub mod signals;
+pub mod triggers;
 
 /// How many simulator time steps make one nanosecond, measured rather than
 /// assumed.

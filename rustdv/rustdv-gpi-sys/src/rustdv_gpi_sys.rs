@@ -114,6 +114,7 @@ pub const cbAfterDelay: PLI_INT32 = 9;
 pub const cbEndOfCompile: PLI_INT32 = 10;
 pub const cbStartOfSimulation: PLI_INT32 = 11;
 pub const cbEndOfSimulation: PLI_INT32 = 12;
+pub const cbAtEndOfSimTime: PLI_INT32 = 31;
 
 // ---------------------------------------------------------------------------
 // Structs
@@ -138,7 +139,7 @@ pub union u_vpi_value_union {
     pub integer: PLI_INT32,
     pub real: f64,
     pub time: *mut t_vpi_time,
-    pub vector: *mut c_void,
+    pub vector: *mut t_vpi_vecval,
     pub strength: *mut c_void,
     pub misc: *mut PLI_BYTE8,
 }
@@ -148,6 +149,15 @@ pub union u_vpi_value_union {
 pub struct t_vpi_value {
     pub format: PLI_INT32,
     pub value: u_vpi_value_union,
+}
+
+/// One 32-bit word of a four-state VPI vector. `aval` carries the value bits;
+/// a set bit in `bval` marks the corresponding bit as X/Z.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct t_vpi_vecval {
+    pub aval: PLI_UINT32,
+    pub bval: PLI_UINT32,
 }
 
 #[repr(C)]

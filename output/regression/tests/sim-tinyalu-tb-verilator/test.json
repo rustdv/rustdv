@@ -1,0 +1,14 @@
+{
+  "comment": "The shipped TinyALU Rust testbench on Verilator FAST mode. Requires Verilator 5.050 or newer for runtime VPI loading and checks the simulator-independent verdict because vpiFinish itself exits zero after a failed regression.",
+  "cmd": ["bash", "sim/run_rustdv.sh", "release", "verilator"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "REGRESSION: PASS",
+    "scoreboard: 20 compared, 0 mismatches",
+    "scoreboard: 4 compared, 0 mismatches",
+    "coverage: Add=5 And=5 Mul=5 Xor=5"
+  ]
+}

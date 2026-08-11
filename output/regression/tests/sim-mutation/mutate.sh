@@ -15,13 +15,14 @@
 # Success criterion: prints "MUTATION: CAUGHT".
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."       # repo root
+SIM="${SIM:-icarus}"
 # run_sim.sh cds to output/examples, so every path handed to it must be
 # absolute — a relative one would be resolved against the wrong directory.
 EXAMPLES="$PWD/output/examples"
 TIMESCALE="$EXAMPLES/sim-common/hdl/timescale.v"
 
 RUSTDV_TMP="/tmp/rustdv-$(id -u)"
-WORK="$RUSTDV_TMP/mutation"
+WORK="$RUSTDV_TMP/mutation-$SIM"
 mkdir -p "$WORK"
 
 GOOD="$EXAMPLES/sim-common/hdl/tinyalu.sv"
@@ -52,10 +53,16 @@ status=0
 for crate in "${CASES[@]}"; do
     # Separate build roots so the mutated .vvp never overwrites the good one
     # that the sim-ch* entries run.
-    out_bad=$(SIM_BUILD_DIR="$WORK/bad" bash "$EXAMPLES/sim-common/run_sim.sh" \
+    out_bad=$(SIM="$SIM" SIM_BUILD_DIR="$WORK/bad" bash "$EXAMPLES/sim-common/run_sim.sh" \
         "$crate" tinyalu "$TIMESCALE" "$BAD" 2>&1)
+    bad_status=$?
     if grep -q "REGRESSION: FAIL" <<< "$out_bad"; then
-        echo "  ok   $crate failed against the mutated RTL"
+        if [ "$SIM" = verilator ] && [ "$bad_status" -eq 0 ]; then
+            echo "  FAIL $crate printed FAIL but the Verilator wrapper returned zero" >&2
+            status=1
+        else
+            echo "  ok   $crate failed against the mutated RTL"
+        fi
     elif ! grep -q "REGRESSION:" <<< "$out_bad"; then
         # No verdict at all: the build or the simulator fell over, and
         # "it did not pass" would be the wrong thing to conclude.
@@ -69,9 +76,10 @@ for crate in "${CASES[@]}"; do
 
     # The control. Without it, a testbench that had stopped compiling would
     # "catch" every mutation.
-    out_good=$(SIM_BUILD_DIR="$WORK/good" bash "$EXAMPLES/sim-common/run_sim.sh" \
+    out_good=$(SIM="$SIM" SIM_BUILD_DIR="$WORK/good" bash "$EXAMPLES/sim-common/run_sim.sh" \
         "$crate" tinyalu "$TIMESCALE" "$GOOD" 2>&1)
-    if grep -q "REGRESSION: PASS" <<< "$out_good"; then
+    good_status=$?
+    if grep -q "REGRESSION: PASS" <<< "$out_good" && [ "$good_status" -eq 0 ]; then
         echo "  ok   $crate passed against the real RTL"
     else
         echo "  FAIL $crate did not pass against the real RTL — the run above proved nothing" >&2

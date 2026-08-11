@@ -5,8 +5,10 @@
 //!
 //! 1. Handles are opaque and non-null; fallible acquisition is `Result`.
 //! 2. Object-handle lifetime = simulation lifetime (freely `Copy`able IDs).
-//!    Callback handles invalidate on removal/fire — modeled by RAII
-//!    ([`CallbackHandle`]): dropping an unfired handle removes the callback.
+//!    Callback registrations are modeled by RAII ([`CallbackHandle`]):
+//!    dropping a live handle removes it, and fired one-shots remove themselves
+//!    from inside the trampoline while both supported simulators still accept
+//!    the registration handle.
 //! 3. Strings are copied at the boundary, every call.
 //! 4. No unwinding across FFI: every trampoline wraps the closure in
 //!    `catch_unwind`; panics are routed to the panic sink.
@@ -123,7 +125,11 @@ impl AnyHandle {
             sys::vpiNet | sys::vpiReg | sys::vpiIntegerVar | sys::vpiPort | sys::vpiMemory
             | sys::vpiLongIntVar | sys::vpiShortIntVar | sys::vpiIntVar | sys::vpiByteVar
             | sys::vpiEnumVar | sys::vpiBitVar => {
-                AnyHandle::Logic(LogicHandle { h })
+                // Signal width is immutable for the lifetime of a VPI
+                // object. Cache it at discovery so every value read/write
+                // does not pay for another vpi_get(vpiSize) crossing.
+                let width = h.get(sys::vpiSize).max(0) as u32;
+                AnyHandle::Logic(LogicHandle { h, width })
             }
             _ => AnyHandle::Other(h),
         }
@@ -232,6 +238,7 @@ impl HierarchyHandle {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct LogicHandle {
     h: ObjHandle,
+    width: u32,
 }
 
 impl LogicHandle {
@@ -242,7 +249,7 @@ impl LogicHandle {
         self.h.get_str(sys::vpiFullName)
     }
     pub fn size(&self) -> u32 {
-        self.h.get(sys::vpiSize).max(0) as u32
+        self.width
     }
 
     /// Current value as a binary string, e.g. "0101", "xxxx".
@@ -270,16 +277,46 @@ impl LogicHandle {
     /// Current value as u64; `Err` if any bit is x/z (design-doc §0.6:
     /// conversion failures are Results, not exceptions).
     pub fn get_u64(&self) -> Result<u64, ValueError> {
-        let s = self.get_binstr();
-        let mut v: u64 = 0;
-        for c in s.chars() {
-            match c {
-                '0' => v <<= 1,
-                '1' => v = (v << 1) | 1,
-                _ => return Err(ValueError::FourState(s)),
-            }
+        let width = self.size().max(1);
+        if width > 64 {
+            return Err(ValueError::Width {
+                want: width,
+                have: 64,
+            });
         }
-        Ok(v)
+        let mut val = sys::t_vpi_value {
+            format: sys::vpiVectorVal,
+            value: sys::u_vpi_value_union {
+                vector: std::ptr::null_mut(),
+            },
+        };
+        unsafe {
+            sys::vpi_get_value(self.h.0, &mut val);
+            let words = val.value.vector;
+            if words.is_null() {
+                return Ok(0);
+            }
+            let word_count = width.div_ceil(32) as usize;
+            let mut result = 0u64;
+            for index in 0..word_count {
+                let word = *words.add(index);
+                let used_bits = if index + 1 == word_count && !width.is_multiple_of(32) {
+                    width % 32
+                } else {
+                    32
+                };
+                let mask = if used_bits == 32 {
+                    u32::MAX
+                } else {
+                    (1u32 << used_bits) - 1
+                };
+                if word.bval & mask != 0 {
+                    return Err(ValueError::FourState(self.get_binstr()));
+                }
+                result |= ((word.aval & mask) as u64) << (index * 32);
+            }
+            Ok(result)
+        }
     }
 
     fn put_binstr_flags(&self, bin: &str, flags: i32) {
@@ -293,16 +330,49 @@ impl LogicHandle {
         }
     }
 
+    fn put_vector_words(&self, words: &mut [sys::t_vpi_vecval]) {
+        let mut val = sys::t_vpi_value {
+            format: sys::vpiVectorVal,
+            value: sys::u_vpi_value_union {
+                vector: words.as_mut_ptr(),
+            },
+        };
+        unsafe {
+            sys::vpi_put_value(self.h.0, &mut val, std::ptr::null_mut(), sys::vpiNoDelay);
+        }
+    }
+
     /// Immediate (NoDelay) write of an integer value, zero-extended /
     /// truncated to the signal width. This is the "setimmediatevalue"
     /// analog; scheduled writes are layered above (design-doc §4.1(4)).
     pub fn set_u64_now(&self, v: u64) {
-        let w = self.size().max(1) as usize;
-        let mut s = String::with_capacity(w);
-        for i in (0..w).rev() {
-            s.push(if (v >> i) & 1 == 1 { '1' } else { '0' });
+        let width = self.size().max(1);
+        let word_count = width.div_ceil(32) as usize;
+        let mut words = if word_count <= 2 {
+            let words = [
+                sys::t_vpi_vecval {
+                    aval: v as u32,
+                    bval: 0,
+                },
+                sys::t_vpi_vecval {
+                    aval: (v >> 32) as u32,
+                    bval: 0,
+                },
+            ];
+            words[..word_count].to_vec()
+        } else {
+            let mut words = vec![sys::t_vpi_vecval::default(); word_count];
+            words[0].aval = v as u32;
+            words[1].aval = (v >> 32) as u32;
+            words
+        };
+        if !width.is_multiple_of(32) {
+            let mask = (1u32 << (width % 32)) - 1;
+            let last = words.last_mut().expect("positive width has a vector word");
+            last.aval &= mask;
+            last.bval &= mask;
         }
-        self.put_binstr_flags(&s, sys::vpiNoDelay);
+        self.put_vector_words(&mut words);
     }
 
     /// Immediate write of a 4-state value.
@@ -413,6 +483,11 @@ enum CbKind {
 
 struct CbShared {
     kind: CbKind,
+    /// Registration handle returned by vpi_register_cb. One-shots remove it
+    /// from inside the trampoline, while it is valid on both supported
+    /// simulators: Icarus reaps the active callback after it returns and
+    /// Verilator releases its separately-owned handle object immediately.
+    vpi_h: Cell<sys::vpiHandle>,
     /// True once the C-side Rc reference has been reclaimed (fired one-shot
     /// or removed callback). Guards against double-free.
     released: Cell<bool>,
@@ -426,23 +501,27 @@ struct CbShared {
 pub struct CallbackHandle {
     shared: Rc<CbShared>,
     raw: *const CbShared,
-    vpi_h: sys::vpiHandle,
+    detached: bool,
 }
 
 impl CallbackHandle {
-    /// Detach: let the callback live for the rest of the simulation
-    /// (recurring singletons like the phase hub).
-    pub fn forget(self) {
-        std::mem::forget(self);
+    /// Detach Rust ownership without leaking it. A detached one-shot keeps its
+    /// C-side reference until it fires and then self-cleans; a detached
+    /// recurring callback lives for the rest of the simulation.
+    pub fn forget(mut self) {
+        self.detached = true;
     }
 }
 
 impl Drop for CallbackHandle {
     fn drop(&mut self) {
+        if self.detached {
+            return;
+        }
         if !self.shared.released.get() {
             self.shared.released.set(true);
             unsafe {
-                sys::vpi_remove_cb(self.vpi_h);
+                sys::vpi_remove_cb(self.shared.vpi_h.get());
                 // Reclaim the C-side reference.
                 drop(Rc::from_raw(self.raw));
             }
@@ -465,6 +544,12 @@ extern "C" fn trampoline(cb: *mut sys::t_cb_data) -> i32 {
                 if !shared.released.get() {
                     shared.released.set(true);
                     let f = shared.once.borrow_mut().take();
+                    // The returned callback handle has different post-fire
+                    // ownership across simulators. Remove it while the active
+                    // callback is still valid on both: Icarus marks it for
+                    // self-reaping, while Verilator deletes the retained
+                    // VerilatedVpioReasonCb handle.
+                    sys::vpi_remove_cb(shared.vpi_h.get());
                     // Reclaim the C-side reference before running user code.
                     drop(Rc::from_raw(ud));
                     if let Some(f) = f {
@@ -498,6 +583,7 @@ fn register(
 ) -> CallbackHandle {
     let shared = Rc::new(CbShared {
         kind,
+        vpi_h: Cell::new(std::ptr::null_mut()),
         released: Cell::new(false),
         once: RefCell::new(once),
         repeat: RefCell::new(repeat),
@@ -524,7 +610,8 @@ fn register(
     };
     let vpi_h = unsafe { sys::vpi_register_cb(&mut cb) };
     assert!(!vpi_h.is_null(), "vpi_register_cb failed (reason {reason})");
-    CallbackHandle { shared, raw, vpi_h }
+    shared.vpi_h.set(vpi_h);
+    CallbackHandle { shared, raw, detached: false }
 }
 
 fn simtime(steps: u64) -> sys::t_vpi_time {
@@ -569,6 +656,18 @@ pub fn register_next_sim_time(f: Box<dyn FnOnce()>) -> CallbackHandle {
     register(CbKind::OneShot, Some(f), None, sys::cbNextSimTime, std::ptr::null_mut(), None)
 }
 
+/// One-shot callback at the end of the current simulation time step.
+pub fn register_at_end_of_sim_time(f: Box<dyn FnOnce()>) -> CallbackHandle {
+    register(
+        CbKind::OneShot,
+        Some(f),
+        None,
+        sys::cbAtEndOfSimTime,
+        std::ptr::null_mut(),
+        Some(simtime(sim_time_steps())),
+    )
+}
+
 /// One-shot callback at start of simulation (the bootstrap hook).
 pub fn register_start_of_simulation(f: Box<dyn FnOnce()>) -> CallbackHandle {
     register(CbKind::OneShot, Some(f), None, sys::cbStartOfSimulation, std::ptr::null_mut(), None)
@@ -577,4 +676,138 @@ pub fn register_start_of_simulation(f: Box<dyn FnOnce()>) -> CallbackHandle {
 /// One-shot callback at end of simulation.
 pub fn register_end_of_simulation(f: Box<dyn FnOnce()>) -> CallbackHandle {
     register(CbKind::OneShot, Some(f), None, sys::cbEndOfSimulation, std::ptr::null_mut(), None)
+}
+
+#[cfg(test)]
+mod callback_tests {
+    use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    #[test]
+    fn fired_one_shot_releases_its_vpi_handle() {
+        rustdv_vpi_stubs::reset_callbacks();
+        let fired = Rc::new(Cell::new(false));
+        let fired_in_callback = fired.clone();
+        let handle = register_timer(1, Box::new(move || fired_in_callback.set(true)));
+
+        assert_eq!(rustdv_vpi_stubs::live_callback_handles(), 1);
+        rustdv_vpi_stubs::fire_next_callback();
+        assert!(fired.get());
+        drop(handle);
+
+        assert_eq!(rustdv_vpi_stubs::live_callback_handles(), 0);
+        rustdv_vpi_stubs::reset_callbacks();
+    }
+
+    #[test]
+    fn detached_one_shot_releases_shared_state_after_firing() {
+        rustdv_vpi_stubs::reset_callbacks();
+        let handle = register_timer(1, Box::new(|| {}));
+        let shared = Rc::downgrade(&handle.shared);
+
+        handle.forget();
+        assert!(shared.upgrade().is_some());
+        rustdv_vpi_stubs::fire_next_callback();
+
+        assert_eq!(rustdv_vpi_stubs::live_callback_handles(), 0);
+        assert!(shared.upgrade().is_none());
+        rustdv_vpi_stubs::reset_callbacks();
+    }
+
+    #[test]
+    fn callback_stub_refuses_to_reset_a_live_handle() {
+        rustdv_vpi_stubs::reset_callbacks();
+        let handle = register_timer(1, Box::new(|| {}));
+
+        let reset = catch_unwind(AssertUnwindSafe(rustdv_vpi_stubs::reset_callbacks));
+        assert!(reset.is_err());
+
+        drop(handle);
+        rustdv_vpi_stubs::reset_callbacks();
+    }
+}
+
+#[cfg(test)]
+mod handle_tests {
+    use super::*;
+
+    fn make_signal(width: i32, words: &[sys::t_vpi_vecval], binstr: &str) -> LogicHandle {
+        rustdv_vpi_stubs::configure_signal(width, words, binstr);
+        let raw = 1usize as sys::vpiHandle;
+        let AnyHandle::Logic(signal) = AnyHandle::classify(ObjHandle(raw)) else {
+            panic!("stub object was not classified as a signal");
+        };
+        signal
+    }
+
+    #[test]
+    fn signal_width_is_cached_when_the_handle_is_classified() {
+        rustdv_vpi_stubs::reset_property_gets();
+        let signal = make_signal(37, &[sys::t_vpi_vecval::default(); 2], &"0".repeat(37));
+
+        assert_eq!(signal.size(), 37);
+        assert_eq!(signal.size(), 37);
+        assert_eq!(rustdv_vpi_stubs::property_get_count(sys::vpiType), 1);
+        assert_eq!(rustdv_vpi_stubs::property_get_count(sys::vpiSize), 1);
+        rustdv_vpi_stubs::reset_property_gets();
+    }
+
+    #[test]
+    fn vector_read_uses_vpi_word_order_and_masks_unused_bits() {
+        let signal = make_signal(
+            37,
+            &[
+                sys::t_vpi_vecval {
+                    aval: 0x89ab_cdef,
+                    bval: 0,
+                },
+                sys::t_vpi_vecval {
+                    aval: 0xffff_fff5,
+                    bval: 0xffff_ffe0,
+                },
+            ],
+            "101011001101010111100110111101111",
+        );
+
+        assert_eq!(signal.get_u64(), Ok(0x0000_0015_89ab_cdef));
+    }
+
+    #[test]
+    fn vector_read_reports_xz_in_used_bits() {
+        let signal = make_signal(
+            8,
+            &[sys::t_vpi_vecval {
+                aval: 0x5a,
+                bval: 0x04,
+            }],
+            "01011x10",
+        );
+
+        assert_eq!(
+            signal.get_u64(),
+            Err(ValueError::FourState("01011x10".to_owned()))
+        );
+    }
+
+    #[test]
+    fn vector_write_truncates_and_zero_extends_to_signal_width() {
+        let signal = make_signal(37, &[sys::t_vpi_vecval::default(); 2], &"0".repeat(37));
+        signal.set_u64_now(0xffff_fff5_89ab_cdef);
+        let words = rustdv_vpi_stubs::last_put_vector();
+
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].aval, 0x89ab_cdef);
+        assert_eq!(words[1].aval, 0x15);
+        assert_eq!(words[0].bval, 0);
+        assert_eq!(words[1].bval, 0);
+
+        let wide = make_signal(70, &[sys::t_vpi_vecval::default(); 3], &"0".repeat(70));
+        wide.set_u64_now(0x0123_4567_89ab_cdef);
+        let words = rustdv_vpi_stubs::last_put_vector();
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[0].aval, 0x89ab_cdef);
+        assert_eq!(words[1].aval, 0x0123_4567);
+        assert_eq!(words[2].aval, 0);
+    }
 }

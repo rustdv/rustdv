@@ -195,6 +195,62 @@ async fn trig_with_timeout_inner_wins(_ctx: RustdvCtx) -> Result<(), TestError> 
     Ok(())
 }
 
+// The Verilator host owns two independent time queues: delayed RTL events and
+// VPI timers. It must always advance to the earlier deadline rather than
+// starving one queue behind the other.
+#[rustdv::test]
+async fn trig_earliest_rtl_or_vpi_deadline_wins(ctx: RustdvCtx) -> Result<(), TestError> {
+    let request = ctx.dut().signal("rtl_event_request")?;
+    let done = ctx.dut().signal("rtl_event_done")?;
+    request.set_u64_now(0);
+    request.set_u64(1);
+    read_write().await;
+
+    let t0 = sim_time_ns();
+    Timer::ns(3).await;
+    check!(sim_time_ns() - t0 == 3.0, "the earlier VPI deadline did not win");
+    check!(!done.is_high(), "the 7ns RTL event fired before the 3ns VPI timer");
+
+    let edge = with_timeout(done.rising_edge(), SimDuration::ns(5)).await;
+    check!(edge.is_ok(), "the earlier RTL event lost to a later VPI timeout");
+    check!(sim_time_ns() - t0 == 7.0, "the RTL event did not fire after 7ns");
+    Ok(())
+}
+
+// Verilator's callback regions are AtEnd -> ReadWrite -> ReadOnly. An AtEnd
+// callback may write the DUT, and the host must re-evaluate that write before
+// any ReadOnly waiter observes the combinational result.
+#[rustdv::test]
+async fn trig_at_end_write_settles_before_read_only(ctx: RustdvCtx) -> Result<(), TestError> {
+    let input = ctx.dut().signal("comb_in")?;
+    let output = ctx.dut().signal("comb_out")?;
+    input.set_u64_now(0);
+    read_write().await;
+
+    rustdv::gpi::register_at_end_of_sim_time(Box::new(move || {
+        input.set_u64_now(0x5A);
+    }))
+    .forget();
+    read_only().await;
+
+    let got = output.get_u64().unwrap_or(0);
+    check!(got == (0x5A ^ 0xA5), "ReadOnly saw {got:#x} before the AtEnd write settled");
+    Ok(())
+}
+
+// The test itself passes before simulation shutdown. The marker printed by
+// this detached callback proves the host delivered cbEndOfSimulation.
+#[rustdv::test]
+async fn trig_end_of_simulation_callback_is_delivered(
+    _ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    rustdv::gpi::register_end_of_simulation(Box::new(|| {
+        println!("END OF SIMULATION CALLBACK: PASS");
+    }))
+    .forget();
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Phase triggers
 // ---------------------------------------------------------------------------
@@ -224,6 +280,23 @@ async fn trig_writes_are_scheduled_not_immediate(ctx: RustdvCtx) -> Result<(), T
     sig.set_u64_now(0x5A);
     let now = sig.get_u64().unwrap_or(0);
     check!(now == 0x5A, "set_u64_now did not take effect immediately (read {now:#x})");
+    Ok(())
+}
+
+// A VPI write made in ReadWrite must reach the RTL and settle before
+// ReadOnly.  Verilator hosts have to perform the intervening eval explicitly;
+// without it this reads the previous value even though phase callbacks fire.
+#[rustdv::test]
+async fn trig_read_only_sees_settled_rtl(ctx: RustdvCtx) -> Result<(), TestError> {
+    let input = ctx.dut().signal("comb_in")?;
+    let output = ctx.dut().signal("comb_out")?;
+
+    input.set_u64(0x3C);
+    read_write().await;
+    read_only().await;
+
+    let got = output.get_u64().unwrap_or(0);
+    check!(got == (0x3C ^ 0xA5), "ReadOnly saw comb_out={got:#x} before RTL settled");
     Ok(())
 }
 

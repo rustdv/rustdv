@@ -65,6 +65,9 @@ dependencies = [
 [[package]]
 name = "rustdv-vpi-stubs"
 version = "0.1.0"
+dependencies = [
+ "rustdv-gpi-sys",
+]
 
 [[package]]
 name = "tinyalu_tb"
