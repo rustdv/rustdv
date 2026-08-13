@@ -125,7 +125,7 @@ jobs:
 
       - name: Cache Verilator 5.050
         id: verilator-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/verilator-5.050
           key: verilator-5.050-${{ runner.os }}-${{ runner.arch }}
