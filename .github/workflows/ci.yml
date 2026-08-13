@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload regression log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: regress-log
           path: regress.log
@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload simulator log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sim-log-${{ runner.os }}
           path: sim.log
