@@ -92,8 +92,17 @@ case "$MODE" in
         INPUTS+=("$CONTROL")
         FLAGS+=(--trace-fst)
         if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblz4; then
-            FLAGS+=(-CFLAGS "$(pkg-config --cflags liblz4)")
-            FLAGS+=(-LDFLAGS "$(pkg-config --libs liblz4)")
+            LZ4_CFLAGS="$(pkg-config --cflags liblz4)"
+            LZ4_LIBS="$(pkg-config --libs liblz4)"
+            # pkg-config omits system include directories on Linux, so
+            # --cflags may legitimately be empty. Passing `-CFLAGS ""` makes
+            # Verilator consume the following option incorrectly.
+            if [ -n "$LZ4_CFLAGS" ]; then
+                FLAGS+=(-CFLAGS "$LZ4_CFLAGS")
+            fi
+            if [ -n "$LZ4_LIBS" ]; then
+                FLAGS+=(-LDFLAGS "$LZ4_LIBS")
+            fi
         fi
         export RUSTDV_FST="${RUSTDV_FST:-$BUILD/${TOP}.fst}"
         ;;
