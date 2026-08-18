@@ -38,19 +38,22 @@ Run the Rust testbench with either backend:
 sim/run_rustdv.sh release icarus
 sim/run_rustdv.sh release verilator
 RUSTDV_VERILATOR_MODE=debug sim/run_rustdv.sh release verilator
+RUSTDV_VERILATOR_MODE=inspect sim/run_rustdv.sh release verilator
 ```
 
-The last command writes an FST under `/tmp/rustdv-$(id -u)/`. FAST exposes
-only top-level ports; DEBUG adds the signals in a Verilator control file; the
-small framework probe alone uses full visibility. Verilator 5.050 or newer is
-required for runtime VPI library loading.
+DEBUG writes an FST under `/tmp/rustdv-$(id -u)/`. FAST exposes only top-level
+ports; DEBUG adds the signals in a Verilator control file and an FST; INSPECT
+adds the same selected VPI visibility without building or emitting a waveform.
+The small framework probe alone uses full visibility. Verilator 5.050 or newer
+is required for runtime VPI library loading. The TinyALU entry point defaults
+the DEBUG and INSPECT control file to `sim/verilator-debug.vlt`.
 
 Useful Verilator controls are:
 
 | Variable | Values | Purpose |
 |---|---|---|
-| `RUSTDV_VERILATOR_MODE` | `fast`, `debug`, `framework` | visibility and tracing policy |
-| `RUSTDV_VERILATOR_CONTROL_FILE` | path to `.vlt` | selected DEBUG internals |
+| `RUSTDV_VERILATOR_MODE` | `fast`, `debug`, `inspect`, `framework` | visibility and tracing policy |
+| `RUSTDV_VERILATOR_CONTROL_FILE` | path to `.vlt` | selected DEBUG/INSPECT internals |
 | `RUSTDV_FST` | output path | DEBUG waveform location |
 | `RUSTDV_VERILATOR_OPT` | `default`, `o3` | generated-model optimization |
 | `RUSTDV_VERILATOR_THREADS` | `1`, `2`, `4` | Verilated model threads |

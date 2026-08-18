@@ -53,9 +53,11 @@ case "$SIM" in
     vvp -M "$BUILD" -m tinyalu_tb "$BUILD/tinyalu_rustdv.vvp"
     ;;
   verilator)
-    if [ "${RUSTDV_VERILATOR_MODE:-fast}" = debug ]; then
-      export RUSTDV_VERILATOR_CONTROL_FILE="${RUSTDV_VERILATOR_CONTROL_FILE:-$REPO_ROOT/sim/verilator-debug.vlt}"
-    fi
+    case "${RUSTDV_VERILATOR_MODE:-fast}" in
+      debug|inspect)
+        export RUSTDV_VERILATOR_CONTROL_FILE="${RUSTDV_VERILATOR_CONTROL_FILE:-$REPO_ROOT/sim/verilator-debug.vlt}"
+        ;;
+    esac
     "$REPO_ROOT/sim/run_verilator.sh" "$LIB" tinyalu "$BUILD/verilator" \
       "$REPO_ROOT/sim/hdl/timescale.v" "$REPO_ROOT/sim/hdl/tinyalu.sv"
     ;;

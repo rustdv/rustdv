@@ -1,0 +1,15 @@
+{
+  "comment": "Verilator INSPECT policy: TinyALU runs with selected control-file visibility, emits no FST, and rejects an explicit waveform request.",
+  "cmd": ["bash", "output/regression/tests/sim-inspect-verilator/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "REGRESSION: PASS",
+    "scoreboard: 20 compared, 0 mismatches",
+    "coverage: Add=5 And=5 Mul=5 Xor=5",
+    "INSPECT NO FST: PASS",
+    "INSPECT FST REJECTION: PASS"
+  ]
+}

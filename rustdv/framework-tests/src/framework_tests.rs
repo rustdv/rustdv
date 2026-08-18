@@ -35,6 +35,7 @@
 //! | `conc_` | [`concurrency`] | the D82 family, against real time |
 //! | `elab_` | [`elaboration`] | unconnected ports fail before the run phase |
 //! | `runner_` | [`runner`] | timeouts, `expect_error`, per-test freshness |
+//! | `stable_point_` | [`triggers`] | synchronous service at settled ReadOnly |
 //! | `callback_stress_` | [`callback_lifecycle`] | fired one-shot handles reach an RSS plateau |
 //!
 //! The DUT is `hdl/probe.sv`: a clock, signals of known widths that nothing
