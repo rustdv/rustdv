@@ -6,6 +6,8 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::mpsc;
+use std::time::Duration;
 
 use rustdv::prelude::*;
 
@@ -297,6 +299,138 @@ async fn trig_read_only_sees_settled_rtl(ctx: RustdvCtx) -> Result<(), TestError
 
     let got = output.get_u64().unwrap_or(0);
     check!(got == (0x3C ^ 0xA5), "ReadOnly saw comb_out={got:#x} before RTL settled");
+    Ok(())
+}
+
+// An opted-in service runs only after the design has fixed-point settled at
+// ReadOnly. It may synchronously wait for an ordinary OS worker while the
+// simulator thread — and therefore simulation time — remains held.
+#[rustdv::test]
+async fn stable_point_service_holds_settled_read_only(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    let input = ctx.dut().signal("comb_in")?;
+    let output = ctx.dut().signal("comb_out")?;
+    let clk = ctx.dut().signal("clk")?;
+    Clock::new(&clk, SimDuration::ns(2)).start();
+
+    input.set_u64(0x6C);
+
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let worker = std::thread::spawn(move || -> Result<(), String> {
+        let held_time = entered_rx
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|e| format!("worker did not observe the held stable point: {e}"))?;
+        std::thread::sleep(Duration::from_millis(50));
+        release_tx
+            .send(held_time)
+            .map_err(|e| format!("worker could not release the stable point: {e}"))
+    });
+
+    let held = service_read_only(move || -> Result<_, String> {
+        let before = rustdv::sim_time_steps();
+        let settled = output
+            .get_u64()
+            .map_err(|e| format!("could not read settled combinational output: {e}"))?;
+        entered_tx
+            .send(before)
+            .map_err(|e| format!("could not notify worker of stable point: {e}"))?;
+        let worker_time = release_rx
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|e| format!("worker did not release the stable point: {e}"))?;
+        let after = rustdv::sim_time_steps();
+        Ok((settled, before, after, worker_time))
+    })
+    .await
+    .map_err(TestError::new)?;
+
+    worker
+        .join()
+        .map_err(|_| TestError::new("stable-point worker panicked"))?
+        .map_err(TestError::new)?;
+
+    check!(
+        held.0 == (0x6C ^ 0xA5),
+        "stable-point service saw comb_out={:#x} before RTL settled",
+        held.0
+    );
+    check!(
+        held.1 == held.2 && held.1 == held.3,
+        "simulation time changed while held: entered={}, released={}, worker={}",
+        held.1,
+        held.2,
+        held.3
+    );
+
+    let released_at = rustdv::sim_time_steps();
+    Timer::ns(2).await;
+    check!(
+        rustdv::sim_time_steps() > released_at,
+        "simulation did not advance after the worker released the stable point"
+    );
+    Ok(())
+}
+
+// A service panic unwinds to RustDV's task boundary. The runner contains it
+// as this test's expected failure instead of losing the simulator callback or
+// aborting the process. The following test proves a later test can service the
+// simulator normally after the runner has left the prior ReadOnly phase.
+#[rustdv::test(expect_fail)]
+async fn stable_point_service_panic_is_contained(_ctx: RustdvCtx) -> Result<(), TestError> {
+    service_read_only(|| {
+        panic!("deliberate stable-point service panic");
+    })
+    .await;
+    Ok(())
+}
+
+#[rustdv::test]
+async fn stable_point_service_is_available_after_prior_panic(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    let input = ctx.dut().signal("comb_in")?;
+    let output = ctx.dut().signal("comb_out")?;
+    input.set_u64(0x93);
+
+    let (settled, held_at) = service_read_only(move || {
+        (output.get_u64().unwrap_or(0), rustdv::sim_time_steps())
+    })
+    .await;
+    check!(
+        settled == (0x93 ^ 0xA5),
+        "later stable-point service saw comb_out={settled:#x} before RTL settled"
+    );
+
+    Timer::ns(1).await;
+    check!(
+        rustdv::sim_time_steps() > held_at,
+        "simulation did not advance after the recovered stable-point service"
+    );
+    Ok(())
+}
+
+// This test is run against TinyALU rather than the normal framework probe.
+// `start_single` is not a port: resolving and reading it proves Verilator's
+// INSPECT control file applied selected internal VPI visibility without FST.
+#[rustdv::test]
+async fn inspect_visibility_selected_internal_is_readable(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    if std::env::var_os("RUSTDV_VERIFY_INSPECT_VISIBILITY").is_none() {
+        return Ok(());
+    }
+    let selected = ctx.dut().signal("start_single")?;
+    check!(
+        selected.size() == 1,
+        "INSPECT exposed start_single with width {}, not 1",
+        selected.size()
+    );
+    check!(
+        selected.get_binstr().len() == 1,
+        "INSPECT could not read a one-bit value from start_single"
+    );
+    println!("INSPECT INTERNAL VISIBILITY: PASS");
     Ok(())
 }
 

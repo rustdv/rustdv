@@ -6,6 +6,7 @@
 # RUSTDV_VERILATOR_MODE:
 #   fast       top-level DUT ports only (default)
 #   debug      selected internals from RUSTDV_VERILATOR_CONTROL_FILE + FST
+#   inspect    selected internals from RUSTDV_VERILATOR_CONTROL_FILE, no FST
 #   framework  all signals visible; regression probes only
 set -euo pipefail
 
@@ -119,11 +120,23 @@ case "$MODE" in
         fi
         export RUSTDV_FST="${RUSTDV_FST:-$BUILD/${TOP}.fst}"
         ;;
+    inspect)
+        CONTROL="${RUSTDV_VERILATOR_CONTROL_FILE:-}"
+        if [ -z "$CONTROL" ] || [ ! -f "$CONTROL" ]; then
+            echo "rustdv: inspect mode requires RUSTDV_VERILATOR_CONTROL_FILE=<file.vlt>" >&2
+            exit 2
+        fi
+        if [ -n "${RUSTDV_FST:-}" ]; then
+            echo "rustdv: FST tracing belongs to debug mode (set RUSTDV_VERILATOR_MODE=debug)" >&2
+            exit 2
+        fi
+        INPUTS+=("$CONTROL")
+        ;;
     framework)
         FLAGS+=(--public-flat-rw)
         ;;
     *)
-        echo "rustdv: unknown RUSTDV_VERILATOR_MODE '$MODE' (use fast|debug|framework)" >&2
+        echo "rustdv: unknown RUSTDV_VERILATOR_MODE '$MODE' (use fast|debug|inspect|framework)" >&2
         exit 2
         ;;
 esac

@@ -42,10 +42,11 @@ pub use rustdv_sim::{first, join};
 pub use rustdv_runner::TestRegistration;
 
 pub use rustdv_sim::{
-    first2, join2, next_time_step, read_only, read_write, sim_time_ns, sim_time_steps, spawn,
-    spawn_named, with_timeout, AnyHandle, Clock, Either, Event, Executor, HandleError, RustdvPath,
-    HierarchyHandle, Lock, LockGuard, Logic, LogicArray, LogicHandle, NullTrigger, Queue, Rng,
-    SimDuration, TaskError, TaskHandle, TaskState, TimeoutError, Timer, ValueError,
+    first2, join2, next_time_step, read_only, read_write, service_read_only, sim_time_ns,
+    sim_time_steps, spawn, spawn_named, with_timeout, AnyHandle, Clock, Either, Event, Executor,
+    HandleError, RustdvPath, HierarchyHandle, Lock, LockGuard, Logic, LogicArray, LogicHandle,
+    NullTrigger, Queue, Rng, SimDuration, TaskError, TaskHandle, TaskState, TimeoutError, Timer,
+    ValueError,
 };
 pub use rustdv_sim::handle::top_module;
 pub use rustdv_sim::log;
@@ -76,8 +77,9 @@ pub mod prelude {
     pub use crate::{
         build_all, channel, check_all, connect_all, end_of_elaboration_all, extract_all, final_all,
         first2, join2, next_time_step, print_hierarchy, read_only, read_write, report_all,
-        run_component_test, run_extract_check_report, sim_time_ns, spawn, spawn_named, start_all,
-        start_of_simulation_all, with_timeout, Active, AnalysisBus, CheckSink, Clock,
+        run_component_test, run_extract_check_report, service_read_only, sim_time_ns, spawn,
+        spawn_named, start_all, start_of_simulation_all, with_timeout, Active, AnalysisBus,
+        CheckSink, Clock,
         RustdvComp, Component, ComponentNode, Either, Event, Factory, HandleError, HierarchyHandle,
         Lock, Logic, LogicArray, LogicHandle, NullTrigger, ObjectionGuard, Queue, Receiver, Rng,
         create_seq, set_seq_override,

@@ -5,8 +5,8 @@
 #
 # With no argument every test in the crate runs. With one, RUSTDV_TESTCASE
 # selects a group by name prefix — `trig_`, `clock_`, `sig_`, `conc_`,
-# `elab_`, `runner_`, `callback_stress_` — which is how the regression gets
-# one entry per mechanism off a single build.
+# `elab_`, `runner_`, `callback_stress_`, `stable_point_` — which is how the
+# regression gets one entry per mechanism off a single build.
 #
 # Success criterion: prints "REGRESSION: PASS".
 set -euo pipefail

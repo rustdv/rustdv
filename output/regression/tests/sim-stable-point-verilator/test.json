@@ -1,0 +1,20 @@
+{
+  "comment": "Opt-in stable-point service runs on the Verilator simulator thread after fixed-point ReadOnly settle, can wait for a worker release with simulation time frozen, then releases normal simulation progress.",
+  "cmd": ["bash", "rustdv/framework-tests/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "env": {
+    "SIM": "verilator",
+    "RUSTDV_TESTCASE": "stable_point_"
+  },
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "rustdv: found 3 test(s)",
+    "stable_point_service_holds_settled_read_only PASSED",
+    "stable_point_service_panic_is_contained PASSED",
+    "stable_point_service_is_available_after_prior_panic PASSED",
+    "REGRESSION: PASS",
+    "RTL FINAL: PASS"
+  ]
+}
