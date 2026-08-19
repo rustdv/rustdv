@@ -434,6 +434,92 @@ async fn inspect_visibility_selected_internal_is_readable(
     Ok(())
 }
 
+// Runtime trace control is an optional Verilator host capability.  The API
+// must remain callable in ordinary simulator builds and report a structured
+// unavailable result rather than failing to load the VPI module.
+#[rustdv::test]
+async fn runtime_trace_uninstrumented_reports_unsupported(
+    _ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    if std::env::var_os("RUSTDV_VERIFY_NO_RUNTIME_TRACE").is_none() {
+        return Ok(());
+    }
+
+    let status = service_read_only(rustdv::sim::verilator_trace::status).await;
+    check!(
+        matches!(
+            status,
+            Err(rustdv::sim::verilator_trace::TraceError::Unavailable(_))
+        ),
+        "uninstrumented simulator returned {status:?} instead of unsupported"
+    );
+    println!("RUNTIME TRACE UNINSTRUMENTED REJECTION: PASS");
+    Ok(())
+}
+
+// In a trace-capable build capture begins at the settled ReadOnly point that
+// arms it, ends at the point that stops it, and never creates or extends the
+// private FST outside that interval.
+#[rustdv::test]
+async fn runtime_trace_capture_is_gated_and_stops_exactly(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    if std::env::var_os("RUSTDV_VERIFY_RUNTIME_TRACE").is_none() {
+        return Ok(());
+    }
+
+    let path = std::env::temp_dir().join(format!(
+        "rustdv-runtime-trace-test-{}.fst",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&path);
+    check!(!path.exists(), "trace file existed before capture was armed");
+
+    let clk = ctx.dut().signal("clk")?;
+    Clock::new(&clk, SimDuration::ns(2)).start();
+
+    let start_path = path.clone();
+    let started = service_read_only(move || rustdv::sim::verilator_trace::start(&start_path))
+        .await
+        .map_err(|error| TestError::new(error.to_string()))?;
+    check!(
+        started.state == rustdv::sim::verilator_trace::TraceState::Active,
+        "trace host did not enter active state: {started:?}"
+    );
+    check!(path.exists(), "arming capture did not create its private FST");
+
+    Timer::ns(4).await;
+    let stopped = service_read_only(rustdv::sim::verilator_trace::stop)
+        .await
+        .map_err(|error| TestError::new(error.to_string()))?;
+    check!(
+        stopped.state == rustdv::sim::verilator_trace::TraceState::Idle,
+        "trace host remained active after stop: {stopped:?}"
+    );
+    check!(
+        stopped.end_time_steps > stopped.start_time_steps && stopped.dump_count > 1,
+        "trace window did not contain settled simulation progress: {stopped:?}"
+    );
+
+    let bytes_at_stop = std::fs::metadata(&path)
+        .map_err(|error| TestError::new(format!("could not stat stopped FST: {error}")))?
+        .len();
+    check!(bytes_at_stop > 0, "stopped FST is empty");
+    Timer::ns(4).await;
+    let bytes_after = std::fs::metadata(&path)
+        .map_err(|error| TestError::new(format!("could not restat stopped FST: {error}")))?
+        .len();
+    check!(
+        bytes_after == bytes_at_stop,
+        "stopped FST grew from {bytes_at_stop} to {bytes_after} bytes"
+    );
+
+    std::fs::remove_file(&path)
+        .map_err(|error| TestError::new(format!("could not remove private FST: {error}")))?;
+    println!("RUNTIME TRACE GATING: PASS");
+    Ok(())
+}
+
 // ReadWrite and ReadOnly land inside the same time step; NextTimeStep does not.
 #[rustdv::test]
 async fn trig_phase_order_within_a_step(ctx: RustdvCtx) -> Result<(), TestError> {

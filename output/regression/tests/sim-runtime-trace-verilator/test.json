@@ -1,0 +1,15 @@
+{
+  "comment": "Runtime-gated FST capture is rejected by an uninstrumented Verilator build and captures only its explicit settled-time window in a trace-capable build.",
+  "cmd": ["bash", "output/regression/tests/sim-runtime-trace-verilator/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "RUNTIME TRACE UNINSTRUMENTED REJECTION: PASS",
+    "RUNTIME TRACE GATING: PASS",
+    "runtime_trace_uninstrumented_reports_unsupported PASSED",
+    "runtime_trace_capture_is_gated_and_stops_exactly PASSED",
+    "RTL FINAL: PASS"
+  ]
+}

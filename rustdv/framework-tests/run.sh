@@ -37,7 +37,7 @@ case "$SIM" in
     vvp -M "$BUILD" -m framework_tests "$BUILD/probe.vvp"
     ;;
   verilator)
-    export RUSTDV_VERILATOR_MODE=framework
+    export RUSTDV_VERILATOR_MODE="${RUSTDV_VERILATOR_MODE:-framework}"
     "$REPO_ROOT/sim/run_verilator.sh" "$LIB" probe "$BUILD/verilator" \
       "$REPO_ROOT/rustdv/framework-tests/hdl/probe.sv"
     ;;
