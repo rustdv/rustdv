@@ -18,6 +18,6 @@ SIM=verilator \
 RUSTDV_TESTCASE=runtime_trace_capture_ \
 RUSTDV_VERIFY_RUNTIME_TRACE=1 \
 RUSTDV_VERILATOR_MODE=record \
-RUSTDV_VERILATOR_FRAMEWORK_VISIBILITY=1 \
+RUSTDV_VERILATOR_CONTROL_FILE="$PWD/output/regression/tests/sim-runtime-trace-verilator/runtime-trace.vlt" \
 SIM_BUILD_DIR="$BUILD/record" \
     bash rustdv/framework-tests/run.sh

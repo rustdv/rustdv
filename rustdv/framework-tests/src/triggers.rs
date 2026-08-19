@@ -515,6 +515,37 @@ async fn runtime_trace_capture_is_gated_and_stops_exactly(
     let clk = ctx.dut().signal("clk")?;
     Clock::new(&clk, SimDuration::ns(2)).start();
 
+    let missing_parent = std::env::temp_dir().join(format!(
+        "rustdv-runtime-trace-missing-parent-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&missing_parent);
+    let invalid_path = missing_parent.join("capture.fst");
+    let (failed, after_failure) = service_read_only(move || {
+        let failed = rustdv::sim::verilator_trace::start(&invalid_path);
+        let after_failure = rustdv::sim::verilator_trace::status();
+        (failed, after_failure)
+    })
+    .await;
+    check!(
+        matches!(
+            failed,
+            Err(rustdv::sim::verilator_trace::TraceError::Host(_))
+        ),
+        "unopenable FST path returned {failed:?} instead of a host error"
+    );
+    let after_failure = after_failure.map_err(|error| TestError::new(error.to_string()))?;
+    check!(
+        after_failure.state == rustdv::sim::verilator_trace::TraceState::Idle
+            && after_failure.start_time_steps == 0
+            && after_failure.end_time_steps == 0
+            && after_failure.dump_count == 0,
+        "failed FST open left the trace host active: {after_failure:?}"
+    );
+    println!("RUNTIME TRACE OPEN FAILURE: PASS");
+
+    Timer::ns(2).await;
+
     let start_path = path.clone();
     let started = service_read_only(move || rustdv::sim::verilator_trace::start(&start_path))
         .await

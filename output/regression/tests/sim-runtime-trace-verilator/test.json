@@ -7,6 +7,7 @@
   "timeout": 600,
   "expect_in_output": [
     "RUNTIME TRACE UNINSTRUMENTED REJECTION: PASS",
+    "RUNTIME TRACE OPEN FAILURE: PASS",
     "RUNTIME TRACE GATING: PASS",
     "runtime_trace_uninstrumented_reports_unsupported PASSED",
     "runtime_trace_capture_is_gated_and_stops_exactly PASSED",

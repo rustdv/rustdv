@@ -20,6 +20,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <limits>
 #include <memory>
 
@@ -173,29 +174,59 @@ class RuntimeTrace final {
     std::uint64_t end_time() const { return end_time_; }
     std::uint64_t dump_count() const { return dump_count_; }
 
-    bool start(const char* path, bool dump_now, const char*& error) {
+    bool start(const char* path, bool dump_now, const char*& error, int& error_code) {
 #if VM_TRACE_FST
+        error_code = 4;
         if (tracep_) {
             error = "an FST capture is already active";
             return false;
         }
         if (!path || !*path) {
             error = "an FST capture path is required";
+            error_code = 3;
             return false;
         }
 
         tracep_ = std::make_unique<VerilatedFstC>();
         dut_.trace(tracep_.get(), 99);
         tracep_->open(path);
+        if (!tracep_->isOpen()) {
+            tracep_.reset();
+            error = "failed to open the requested FST capture path";
+            error_code = 2;
+            return false;
+        }
+        const std::uint64_t previous_start_time = start_time_;
+        const std::uint64_t previous_end_time = end_time_;
+        const std::uint64_t previous_dump_count = dump_count_;
+        const std::uint64_t previous_last_dump_time = last_dump_time_;
+        const bool previous_has_last_dump_time = has_last_dump_time_;
         start_time_ = context_.time();
         end_time_ = start_time_;
         dump_count_ = 0;
         has_last_dump_time_ = false;
-        if (dump_now) dump_settled_time();
+        if (dump_now) {
+            dump_settled_time();
+            tracep_->flush();
+            std::error_code filesystem_error;
+            if (!std::filesystem::is_regular_file(path, filesystem_error)) {
+                tracep_->close();
+                tracep_.reset();
+                start_time_ = previous_start_time;
+                end_time_ = previous_end_time;
+                dump_count_ = previous_dump_count;
+                last_dump_time_ = previous_last_dump_time;
+                has_last_dump_time_ = previous_has_last_dump_time;
+                error = "failed to create the requested FST capture file";
+                error_code = 2;
+                return false;
+            }
+        }
         return true;
 #else
         (void)path;
         (void)dump_now;
+        (void)error_code;
         error = "this Verilator model was not built with --trace-fst";
         return false;
 #endif
@@ -337,11 +368,12 @@ extern "C" RUSTDV_EXPORT int rustdv_verilator_trace_control(
 
     const char* message = nullptr;
     bool ok = false;
+    int failure_code = 4;
     switch (command) {
     case 0:
         return 0;
     case 1:
-        ok = runtime_tracep->start(path, true, message);
+        ok = runtime_tracep->start(path, true, message, failure_code);
         break;
     case 2:
         ok = runtime_tracep->stop(message);
@@ -357,7 +389,7 @@ extern "C" RUSTDV_EXPORT int rustdv_verilator_trace_control(
     fill_trace_status(status);
     if (ok) return 0;
     write_trace_error(error, error_capacity, message);
-    return command == 1 && (!path || !*path) ? 3 : 4;
+    return command == 1 ? failure_code : 4;
 }
 
 int main(int argc, char** argv, char**) {
@@ -377,7 +409,8 @@ int main(int argc, char** argv, char**) {
 
     if (const char* const path = std::getenv("RUSTDV_FST")) {
         const char* error = nullptr;
-        if (!runtime_trace.start(path, false, error)) {
+        int error_code = 4;
+        if (!runtime_trace.start(path, false, error, error_code)) {
             std::fprintf(stderr, "rustdv: %s\n", error);
             return 2;
         }

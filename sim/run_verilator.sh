@@ -166,10 +166,6 @@ case "$MODE" in
         ;;
 esac
 
-if [ "${RUSTDV_VERILATOR_FRAMEWORK_VISIBILITY:-0}" = "1" ]; then
-    FLAGS+=(--public-flat-rw)
-fi
-
 # C++ top-level ports are public by default, but Verilator's VPI namespace is
 # generated only for objects marked public_flat_rw.  Mark just the selected
 # DUT module's ports; this is deliberately narrower than --public-flat-rw.

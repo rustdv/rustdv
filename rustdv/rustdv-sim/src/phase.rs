@@ -33,11 +33,11 @@ enum WriteVal {
 
 struct Hub {
     phase: Cell<SimPhase>,
-    rw_waiters: RefCell<Vec<(Rc<Cell<bool>>, Waker)>>,
+    rw_waiters: RefCell<Vec<(Rc<Cell<bool>>, Rc<RefCell<Waker>>)>>,
     rw_cb: RefCell<Option<gpi::CallbackHandle>>,
-    ro_waiters: RefCell<Vec<(Rc<Cell<bool>>, Waker)>>,
+    ro_waiters: RefCell<Vec<(Rc<Cell<bool>>, Rc<RefCell<Waker>>)>>,
     ro_cb: RefCell<Option<gpi::CallbackHandle>>,
-    nt_waiters: RefCell<Vec<(Rc<Cell<bool>>, Waker)>>,
+    nt_waiters: RefCell<Vec<(Rc<Cell<bool>>, Rc<RefCell<Waker>>)>>,
     nt_cb: RefCell<Option<gpi::CallbackHandle>>,
     writes: RefCell<Vec<(gpi::LogicHandle, WriteVal)>>,
 }
@@ -171,7 +171,7 @@ fn prime_rw(hub: &Rc<Hub>) {
         }
         for (fired, w) in h.rw_waiters.borrow_mut().drain(..) {
             fired.set(true);
-            w.wake();
+            w.borrow().wake_by_ref();
         }
         executor::current().run_until_idle();
         h.phase.set(SimPhase::Normal);
@@ -189,7 +189,7 @@ fn prime_ro(hub: &Rc<Hub>) {
         h.phase.set(SimPhase::ReadOnly);
         for (fired, w) in h.ro_waiters.borrow_mut().drain(..) {
             fired.set(true);
-            w.wake();
+            w.borrow().wake_by_ref();
         }
         executor::current().run_until_idle();
         h.phase.set(SimPhase::Normal);
@@ -206,7 +206,7 @@ fn prime_nt(hub: &Rc<Hub>) {
         h.nt_cb.borrow_mut().take();
         for (fired, w) in h.nt_waiters.borrow_mut().drain(..) {
             fired.set(true);
-            w.wake();
+            w.borrow().wake_by_ref();
         }
         executor::current().run_until_idle();
     }));
@@ -227,6 +227,7 @@ enum PhaseKind {
 pub struct PhaseFut {
     kind: PhaseKind,
     fired: Option<Rc<Cell<bool>>>,
+    waker: Option<Rc<RefCell<Waker>>>,
 }
 
 impl Future for PhaseFut {
@@ -236,11 +237,15 @@ impl Future for PhaseFut {
             return if fired.get() {
                 Poll::Ready(())
             } else {
+                if let Some(waker) = &self.waker {
+                    *waker.borrow_mut() = cx.waker().clone();
+                }
                 Poll::Pending
             };
         }
         let hub = hub();
         let fired = Rc::new(Cell::new(false));
+        let waker = Rc::new(RefCell::new(cx.waker().clone()));
         match self.kind {
             PhaseKind::ReadWrite => {
                 if hub.phase.get() == SimPhase::ReadOnly {
@@ -248,7 +253,7 @@ impl Future for PhaseFut {
                 }
                 hub.rw_waiters
                     .borrow_mut()
-                    .push((fired.clone(), cx.waker().clone()));
+                    .push((fired.clone(), waker.clone()));
                 prime_rw(&hub);
             }
             PhaseKind::ReadOnly => {
@@ -257,29 +262,38 @@ impl Future for PhaseFut {
                 }
                 hub.ro_waiters
                     .borrow_mut()
-                    .push((fired.clone(), cx.waker().clone()));
+                    .push((fired.clone(), waker.clone()));
                 prime_ro(&hub);
             }
             PhaseKind::NextTimeStep => {
                 hub.nt_waiters
                     .borrow_mut()
-                    .push((fired.clone(), cx.waker().clone()));
+                    .push((fired.clone(), waker.clone()));
                 prime_nt(&hub);
             }
         }
         self.fired = Some(fired);
+        self.waker = Some(waker);
         Poll::Pending
     }
 }
 
 /// Await the next ReadWrite phase (port of `ReadWrite()`).
 pub fn read_write() -> PhaseFut {
-    PhaseFut { kind: PhaseKind::ReadWrite, fired: None }
+    PhaseFut {
+        kind: PhaseKind::ReadWrite,
+        fired: None,
+        waker: None,
+    }
 }
 
 /// Await the next ReadOnly phase (port of `ReadOnly()`).
 pub fn read_only() -> PhaseFut {
-    PhaseFut { kind: PhaseKind::ReadOnly, fired: None }
+    PhaseFut {
+        kind: PhaseKind::ReadOnly,
+        fired: None,
+        waker: None,
+    }
 }
 
 /// Run one synchronous service operation at a settled ReadOnly point.
@@ -312,5 +326,9 @@ where
 
 /// Await the next simulator time step (port of `NextTimeStep()`).
 pub fn next_time_step() -> PhaseFut {
-    PhaseFut { kind: PhaseKind::NextTimeStep, fired: None }
+    PhaseFut {
+        kind: PhaseKind::NextTimeStep,
+        fired: None,
+        waker: None,
+    }
 }
