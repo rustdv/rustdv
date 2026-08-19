@@ -4,6 +4,10 @@
 //! a simulator-independent recording API.  Callers should treat
 //! [`TraceError::Unavailable`] as a normal result when the current simulator
 //! or executable was built without runtime trace support.
+//!
+//! Every operation must run on the simulator thread at a settled ReadOnly
+//! point, normally inside [`crate::service_read_only`]. Calls from a worker
+//! thread or another simulator phase return [`TraceError::WrongState`].
 
 use std::ffi::CString;
 use std::fmt;
@@ -102,6 +106,12 @@ pub fn stop() -> Result<TraceStatus, TraceError> {
 
 fn control(command: u32, path: Option<&CString>) -> Result<TraceStatus, TraceError> {
     let function = load_control()?;
+    if crate::phase::current_phase_if_initialized() != Some(crate::phase::SimPhase::ReadOnly) {
+        return Err(TraceError::WrongState(
+            "Verilator trace control must run on the simulator thread at settled ReadOnly"
+                .to_owned(),
+        ));
+    }
     let mut raw = RawTraceStatus::default();
     let mut error = [0_u8; ERROR_CAPACITY];
     let path = path.map_or(std::ptr::null(), |value| value.as_ptr());

@@ -434,6 +434,25 @@ async fn inspect_visibility_selected_internal_is_readable(
     Ok(())
 }
 
+// A phase future may be repolled because another branch of `first2` fired at
+// the same deadline. It must not complete until its own simulator callback
+// fires, or the following ReadOnly service can run early in Normal phase.
+#[rustdv::test]
+async fn stable_point_phase_wait_ignores_an_unrelated_wake(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    let clk = ctx.dut().signal("clk")?;
+    Clock::new(&clk, SimDuration::ns(2)).start();
+
+    let _ = first2(next_time_step(), Timer::ns(1)).await;
+    let phase = service_read_only(rustdv::sim::phase::current_phase).await;
+    check!(
+        phase == rustdv::sim::phase::SimPhase::ReadOnly,
+        "ReadOnly service ran early after a tied phase/timer wake: {phase:?}"
+    );
+    Ok(())
+}
+
 // Runtime trace control is an optional Verilator host capability.  The API
 // must remain callable in ordinary simulator builds and report a structured
 // unavailable result rather than failing to load the VPI module.
@@ -444,6 +463,15 @@ async fn runtime_trace_uninstrumented_reports_unsupported(
     if std::env::var_os("RUSTDV_VERIFY_NO_RUNTIME_TRACE").is_none() {
         return Ok(());
     }
+
+    let wrong_phase = rustdv::sim::verilator_trace::status();
+    check!(
+        matches!(
+            wrong_phase,
+            Err(rustdv::sim::verilator_trace::TraceError::WrongState(_))
+        ),
+        "trace control outside ReadOnly returned {wrong_phase:?}"
+    );
 
     let status = service_read_only(rustdv::sim::verilator_trace::status).await;
     check!(
@@ -474,6 +502,15 @@ async fn runtime_trace_capture_is_gated_and_stops_exactly(
     ));
     let _ = std::fs::remove_file(&path);
     check!(!path.exists(), "trace file existed before capture was armed");
+
+    let wrong_phase = rustdv::sim::verilator_trace::status();
+    check!(
+        matches!(
+            wrong_phase,
+            Err(rustdv::sim::verilator_trace::TraceError::WrongState(_))
+        ),
+        "trace control outside ReadOnly returned {wrong_phase:?}"
+    );
 
     let clk = ctx.dut().signal("clk")?;
     Clock::new(&clk, SimDuration::ns(2)).start();

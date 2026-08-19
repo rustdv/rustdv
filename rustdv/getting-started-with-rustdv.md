@@ -137,6 +137,10 @@ Two tips for the growth phase:
     initial begin $dumpfile("waves.vcd"); $dumpvars(0, my_top); end
   endmodule
   ```
+  For Verilator, use DEBUG mode with a `.vlt` control file for a conventional
+  FST from time zero. Debug services which need bounded historical windows use
+  RECORD mode: the model is trace-capable, but capture is armed and stopped at
+  runtime and remains independent of selected VPI visibility.
 - A test hangs? The run prints a seed (`RUSTDV_RANDOM_SEED=...`); re-run
   with the same seed and read the log from the top — a panic earlier in
   the log is the cause of a hang later in it, nine times out of ten.

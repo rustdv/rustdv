@@ -54,7 +54,7 @@ case "$SIM" in
     ;;
   verilator)
     case "${RUSTDV_VERILATOR_MODE:-fast}" in
-      debug|inspect)
+      debug|record|inspect)
         export RUSTDV_VERILATOR_CONTROL_FILE="${RUSTDV_VERILATOR_CONTROL_FILE:-$REPO_ROOT/sim/verilator-debug.vlt}"
         ;;
     esac
