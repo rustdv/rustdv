@@ -20,7 +20,6 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <limits>
 #include <memory>
 
@@ -187,20 +186,34 @@ class RuntimeTrace final {
             return false;
         }
 
+        // Verilator 5.050's isOpen() only reports that its writer object was
+        // allocated; it does not prove the underlying stream opened.  Probe
+        // the exact destination first.  Starting a capture owns and truncates
+        // this path anyway, so the probe has the same file semantics as the
+        // trace writer and covers both runtime and legacy DEBUG starts.
+        std::FILE* const probep = std::fopen(path, "wb");
+        if (!probep) {
+            error = "failed to create the requested FST capture file";
+            error_code = 2;
+            return false;
+        }
+        if (std::fclose(probep) != 0) {
+            std::remove(path);
+            error = "failed to close the requested FST capture file probe";
+            error_code = 2;
+            return false;
+        }
+
         tracep_ = std::make_unique<VerilatedFstC>();
         dut_.trace(tracep_.get(), 99);
         tracep_->open(path);
         if (!tracep_->isOpen()) {
             tracep_.reset();
+            std::remove(path);
             error = "failed to open the requested FST capture path";
             error_code = 2;
             return false;
         }
-        const std::uint64_t previous_start_time = start_time_;
-        const std::uint64_t previous_end_time = end_time_;
-        const std::uint64_t previous_dump_count = dump_count_;
-        const std::uint64_t previous_last_dump_time = last_dump_time_;
-        const bool previous_has_last_dump_time = has_last_dump_time_;
         start_time_ = context_.time();
         end_time_ = start_time_;
         dump_count_ = 0;
@@ -208,19 +221,6 @@ class RuntimeTrace final {
         if (dump_now) {
             dump_settled_time();
             tracep_->flush();
-            std::error_code filesystem_error;
-            if (!std::filesystem::is_regular_file(path, filesystem_error)) {
-                tracep_->close();
-                tracep_.reset();
-                start_time_ = previous_start_time;
-                end_time_ = previous_end_time;
-                dump_count_ = previous_dump_count;
-                last_dump_time_ = previous_last_dump_time;
-                has_last_dump_time_ = previous_has_last_dump_time;
-                error = "failed to create the requested FST capture file";
-                error_code = 2;
-                return false;
-            }
         }
         return true;
 #else
