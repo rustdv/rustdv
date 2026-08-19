@@ -6,6 +6,8 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::mpsc;
+use std::time::Duration;
 
 use rustdv::prelude::*;
 
@@ -297,6 +299,292 @@ async fn trig_read_only_sees_settled_rtl(ctx: RustdvCtx) -> Result<(), TestError
 
     let got = output.get_u64().unwrap_or(0);
     check!(got == (0x3C ^ 0xA5), "ReadOnly saw comb_out={got:#x} before RTL settled");
+    Ok(())
+}
+
+// An opted-in service runs only after the design has fixed-point settled at
+// ReadOnly. It may synchronously wait for an ordinary OS worker while the
+// simulator thread — and therefore simulation time — remains held.
+#[rustdv::test]
+async fn stable_point_service_holds_settled_read_only(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    let input = ctx.dut().signal("comb_in")?;
+    let output = ctx.dut().signal("comb_out")?;
+    let clk = ctx.dut().signal("clk")?;
+    Clock::new(&clk, SimDuration::ns(2)).start();
+
+    input.set_u64(0x6C);
+
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let worker = std::thread::spawn(move || -> Result<(), String> {
+        let held_time = entered_rx
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|e| format!("worker did not observe the held stable point: {e}"))?;
+        std::thread::sleep(Duration::from_millis(50));
+        release_tx
+            .send(held_time)
+            .map_err(|e| format!("worker could not release the stable point: {e}"))
+    });
+
+    let held = service_read_only(move || -> Result<_, String> {
+        let before = rustdv::sim_time_steps();
+        let settled = output
+            .get_u64()
+            .map_err(|e| format!("could not read settled combinational output: {e}"))?;
+        entered_tx
+            .send(before)
+            .map_err(|e| format!("could not notify worker of stable point: {e}"))?;
+        let worker_time = release_rx
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|e| format!("worker did not release the stable point: {e}"))?;
+        let after = rustdv::sim_time_steps();
+        Ok((settled, before, after, worker_time))
+    })
+    .await
+    .map_err(TestError::new)?;
+
+    worker
+        .join()
+        .map_err(|_| TestError::new("stable-point worker panicked"))?
+        .map_err(TestError::new)?;
+
+    check!(
+        held.0 == (0x6C ^ 0xA5),
+        "stable-point service saw comb_out={:#x} before RTL settled",
+        held.0
+    );
+    check!(
+        held.1 == held.2 && held.1 == held.3,
+        "simulation time changed while held: entered={}, released={}, worker={}",
+        held.1,
+        held.2,
+        held.3
+    );
+
+    let released_at = rustdv::sim_time_steps();
+    Timer::ns(2).await;
+    check!(
+        rustdv::sim_time_steps() > released_at,
+        "simulation did not advance after the worker released the stable point"
+    );
+    Ok(())
+}
+
+// A service panic unwinds to RustDV's task boundary. The runner contains it
+// as this test's expected failure instead of losing the simulator callback or
+// aborting the process. The following test proves a later test can service the
+// simulator normally after the runner has left the prior ReadOnly phase.
+#[rustdv::test(expect_fail)]
+async fn stable_point_service_panic_is_contained(_ctx: RustdvCtx) -> Result<(), TestError> {
+    service_read_only(|| {
+        panic!("deliberate stable-point service panic");
+    })
+    .await;
+    Ok(())
+}
+
+#[rustdv::test]
+async fn stable_point_service_is_available_after_prior_panic(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    let input = ctx.dut().signal("comb_in")?;
+    let output = ctx.dut().signal("comb_out")?;
+    input.set_u64(0x93);
+
+    let (settled, held_at) = service_read_only(move || {
+        (output.get_u64().unwrap_or(0), rustdv::sim_time_steps())
+    })
+    .await;
+    check!(
+        settled == (0x93 ^ 0xA5),
+        "later stable-point service saw comb_out={settled:#x} before RTL settled"
+    );
+
+    Timer::ns(1).await;
+    check!(
+        rustdv::sim_time_steps() > held_at,
+        "simulation did not advance after the recovered stable-point service"
+    );
+    Ok(())
+}
+
+// This test is run against TinyALU rather than the normal framework probe.
+// `start_single` is not a port: resolving and reading it proves Verilator's
+// INSPECT control file applied selected internal VPI visibility without FST.
+#[rustdv::test]
+async fn inspect_visibility_selected_internal_is_readable(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    if std::env::var_os("RUSTDV_VERIFY_INSPECT_VISIBILITY").is_none() {
+        return Ok(());
+    }
+    let selected = ctx.dut().signal("start_single")?;
+    check!(
+        selected.size() == 1,
+        "INSPECT exposed start_single with width {}, not 1",
+        selected.size()
+    );
+    check!(
+        selected.get_binstr().len() == 1,
+        "INSPECT could not read a one-bit value from start_single"
+    );
+    println!("INSPECT INTERNAL VISIBILITY: PASS");
+    Ok(())
+}
+
+// A phase future may be repolled because another branch of `first2` fired at
+// the same deadline. It must not complete until its own simulator callback
+// fires, or the following ReadOnly service can run early in Normal phase.
+#[rustdv::test]
+async fn stable_point_phase_wait_ignores_an_unrelated_wake(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    let clk = ctx.dut().signal("clk")?;
+    Clock::new(&clk, SimDuration::ns(2)).start();
+
+    let _ = first2(next_time_step(), Timer::ns(1)).await;
+    let phase = service_read_only(rustdv::sim::phase::current_phase).await;
+    check!(
+        phase == rustdv::sim::phase::SimPhase::ReadOnly,
+        "ReadOnly service ran early after a tied phase/timer wake: {phase:?}"
+    );
+    Ok(())
+}
+
+// Runtime trace control is an optional Verilator host capability.  The API
+// must remain callable in ordinary simulator builds and report a structured
+// unavailable result rather than failing to load the VPI module.
+#[rustdv::test]
+async fn runtime_trace_uninstrumented_reports_unsupported(
+    _ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    if std::env::var_os("RUSTDV_VERIFY_NO_RUNTIME_TRACE").is_none() {
+        return Ok(());
+    }
+
+    let wrong_phase = rustdv::sim::verilator_trace::status();
+    check!(
+        matches!(
+            wrong_phase,
+            Err(rustdv::sim::verilator_trace::TraceError::WrongState(_))
+        ),
+        "trace control outside ReadOnly returned {wrong_phase:?}"
+    );
+
+    let status = service_read_only(rustdv::sim::verilator_trace::status).await;
+    check!(
+        matches!(
+            status,
+            Err(rustdv::sim::verilator_trace::TraceError::Unavailable(_))
+        ),
+        "uninstrumented simulator returned {status:?} instead of unsupported"
+    );
+    println!("RUNTIME TRACE UNINSTRUMENTED REJECTION: PASS");
+    Ok(())
+}
+
+// In a trace-capable build capture begins at the settled ReadOnly point that
+// arms it, ends at the point that stops it, and never creates or extends the
+// private FST outside that interval.
+#[rustdv::test]
+async fn runtime_trace_capture_is_gated_and_stops_exactly(
+    ctx: RustdvCtx,
+) -> Result<(), TestError> {
+    if std::env::var_os("RUSTDV_VERIFY_RUNTIME_TRACE").is_none() {
+        return Ok(());
+    }
+
+    let path = std::env::temp_dir().join(format!(
+        "rustdv-runtime-trace-test-{}.fst",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&path);
+    check!(!path.exists(), "trace file existed before capture was armed");
+
+    let wrong_phase = rustdv::sim::verilator_trace::status();
+    check!(
+        matches!(
+            wrong_phase,
+            Err(rustdv::sim::verilator_trace::TraceError::WrongState(_))
+        ),
+        "trace control outside ReadOnly returned {wrong_phase:?}"
+    );
+
+    let clk = ctx.dut().signal("clk")?;
+    Clock::new(&clk, SimDuration::ns(2)).start();
+
+    let missing_parent = std::env::temp_dir().join(format!(
+        "rustdv-runtime-trace-missing-parent-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&missing_parent);
+    let invalid_path = missing_parent.join("capture.fst");
+    let (failed, after_failure) = service_read_only(move || {
+        let failed = rustdv::sim::verilator_trace::start(&invalid_path);
+        let after_failure = rustdv::sim::verilator_trace::status();
+        (failed, after_failure)
+    })
+    .await;
+    check!(
+        matches!(
+            failed,
+            Err(rustdv::sim::verilator_trace::TraceError::Host(_))
+        ),
+        "unopenable FST path returned {failed:?} instead of a host error"
+    );
+    let after_failure = after_failure.map_err(|error| TestError::new(error.to_string()))?;
+    check!(
+        after_failure.state == rustdv::sim::verilator_trace::TraceState::Idle
+            && after_failure.start_time_steps == 0
+            && after_failure.end_time_steps == 0
+            && after_failure.dump_count == 0,
+        "failed FST open left the trace host active: {after_failure:?}"
+    );
+    println!("RUNTIME TRACE OPEN FAILURE: PASS");
+
+    Timer::ns(2).await;
+
+    let start_path = path.clone();
+    let started = service_read_only(move || rustdv::sim::verilator_trace::start(&start_path))
+        .await
+        .map_err(|error| TestError::new(error.to_string()))?;
+    check!(
+        started.state == rustdv::sim::verilator_trace::TraceState::Active,
+        "trace host did not enter active state: {started:?}"
+    );
+    check!(path.exists(), "arming capture did not create its private FST");
+
+    Timer::ns(4).await;
+    let stopped = service_read_only(rustdv::sim::verilator_trace::stop)
+        .await
+        .map_err(|error| TestError::new(error.to_string()))?;
+    check!(
+        stopped.state == rustdv::sim::verilator_trace::TraceState::Idle,
+        "trace host remained active after stop: {stopped:?}"
+    );
+    check!(
+        stopped.end_time_steps > stopped.start_time_steps && stopped.dump_count > 1,
+        "trace window did not contain settled simulation progress: {stopped:?}"
+    );
+
+    let bytes_at_stop = std::fs::metadata(&path)
+        .map_err(|error| TestError::new(format!("could not stat stopped FST: {error}")))?
+        .len();
+    check!(bytes_at_stop > 0, "stopped FST is empty");
+    Timer::ns(4).await;
+    let bytes_after = std::fs::metadata(&path)
+        .map_err(|error| TestError::new(format!("could not restat stopped FST: {error}")))?
+        .len();
+    check!(
+        bytes_after == bytes_at_stop,
+        "stopped FST grew from {bytes_at_stop} to {bytes_after} bytes"
+    );
+
+    std::fs::remove_file(&path)
+        .map_err(|error| TestError::new(format!("could not remove private FST: {error}")))?;
+    println!("RUNTIME TRACE GATING: PASS");
     Ok(())
 }
 

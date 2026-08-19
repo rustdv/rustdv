@@ -5,5 +5,5 @@
   "skip_if_missing": "verilator",
   "expect_exit": 0,
   "timeout": 600,
-  "expect_in_output": ["REGRESSION: PASS", "FST: PASS"]
+  "expect_in_output": ["REGRESSION: PASS", "FST: PASS", "FST OPEN FAILURE: PASS"]
 }
