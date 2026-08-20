@@ -6,6 +6,7 @@ cd "$(dirname "$0")/../../../.."
 BUILD="$(mktemp -d /tmp/rustdv-coverage-regression.XXXXXX)"
 trap 'rm -rf "$BUILD"' EXIT
 CONTROL="$PWD/output/regression/tests/sim-coverage-verilator/coverage.vlt"
+FINAL_CONTROL="$PWD/output/regression/tests/sim-coverage-verilator/framework-coverage.vlt"
 
 COVERAGE_FILE="$BUILD/pass/coverage.dat"
 SIM_BUILD_DIR="$BUILD/pass" \
@@ -38,10 +39,10 @@ FINAL_BUILD="$BUILD/final"
 FINAL_COVERAGE_FILE="$FINAL_BUILD/coverage.dat"
 SIM=verilator \
 RUSTDV_TESTCASE=clock_period_is_what_was_asked_for \
-RUSTDV_VERILATOR_FRAMEWORK_VISIBILITY=1 \
 SIM_BUILD_DIR="$FINAL_BUILD" \
 RUSTDV_VERILATOR_MODE=coverage \
 RUSTDV_COVERAGE_FILE="$FINAL_COVERAGE_FILE" \
+RUSTDV_VERILATOR_CONTROL_FILE="$FINAL_CONTROL" \
     bash rustdv/framework-tests/run.sh
 
 FINAL_ANNOTATED="$BUILD/final-annotated"
