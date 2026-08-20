@@ -8,6 +8,7 @@
 #   debug      selected internals from RUSTDV_VERILATOR_CONTROL_FILE + FST
 #   record     selected VPI internals + runtime-gated all-signal FST capture
 #   inspect    selected internals from RUSTDV_VERILATOR_CONTROL_FILE, no FST
+#   coverage   top-level DUT ports + line/expression coverage
 #   framework  all signals visible; regression probes only
 set -euo pipefail
 
@@ -37,6 +38,11 @@ case "${RUSTDV_VERILATOR_OPT:-default}" in
 esac
 if [ "${RUSTDV_VERILATOR_NATIVE:-0}" = 1 ]; then
     OPT_FAST="$OPT_FAST -march=native"
+fi
+
+if [ "$MODE" != "coverage" ] && [ -n "${RUSTDV_COVERAGE_FILE:-}" ]; then
+    echo "rustdv: RUSTDV_COVERAGE_FILE requires RUSTDV_VERILATOR_MODE=coverage" >&2
+    exit 2
 fi
 
 if [[ ! "$TOP" =~ ^[A-Za-z_][A-Za-z0-9_\$]*$ ]]; then
@@ -113,6 +119,7 @@ add_fst_build_flags() {
 }
 
 INPUTS=()
+COVERAGE_FILE=""
 case "$MODE" in
     fast)
         if [ -n "${RUSTDV_FST:-}" ]; then
@@ -157,11 +164,44 @@ case "$MODE" in
         fi
         INPUTS+=("$CONTROL")
         ;;
+    coverage)
+        COVERAGE_FILE="${RUSTDV_COVERAGE_FILE:-}"
+        if [ -z "$COVERAGE_FILE" ]; then
+            echo "rustdv: coverage mode requires RUSTDV_COVERAGE_FILE=<coverage.dat>" >&2
+            exit 2
+        fi
+        if [ -n "${RUSTDV_FST:-}" ]; then
+            echo "rustdv: FST tracing and coverage require separate Verilator builds" >&2
+            exit 2
+        fi
+        CONTROL="${RUSTDV_VERILATOR_CONTROL_FILE:-}"
+        if [ -n "$CONTROL" ]; then
+            if [ ! -f "$CONTROL" ]; then
+                echo "rustdv: RUSTDV_VERILATOR_CONTROL_FILE not found: $CONTROL" >&2
+                exit 2
+            fi
+            INPUTS+=("$CONTROL")
+        fi
+        if [ -d "$COVERAGE_FILE" ]; then
+            echo "rustdv: coverage output path is a directory: $COVERAGE_FILE" >&2
+            exit 2
+        fi
+        COVERAGE_DIR="$(dirname "$COVERAGE_FILE")"
+        if ! mkdir -p "$COVERAGE_DIR"; then
+            echo "rustdv: cannot create coverage output directory: $COVERAGE_DIR" >&2
+            exit 2
+        fi
+        if ! rm -f -- "$COVERAGE_FILE"; then
+            echo "rustdv: cannot replace coverage output: $COVERAGE_FILE" >&2
+            exit 2
+        fi
+        FLAGS+=(--coverage-line --coverage-expr)
+        ;;
     framework)
         FLAGS+=(--public-flat-rw)
         ;;
     *)
-        echo "rustdv: unknown RUSTDV_VERILATOR_MODE '$MODE' (use fast|debug|record|inspect|framework)" >&2
+        echo "rustdv: unknown RUSTDV_VERILATOR_MODE '$MODE' (use fast|debug|record|inspect|coverage|framework)" >&2
         exit 2
         ;;
 esac
@@ -185,13 +225,21 @@ make -C "$OBJ" -f Vrustdv_dut.mk -j "${RUSTDV_VERILATOR_JOBS:-1}" \
     OPT_FAST="$OPT_FAST" OPT_GLOBAL="$OPT_FAST" OPT_SLOW="-O0"
 
 set +e
-"$EXE" "+verilator+vpi+$LIB" 2>&1 | tee "$LOG"
+SIM_ARGS=("+verilator+vpi+$LIB")
+if [ -n "$COVERAGE_FILE" ]; then
+    SIM_ARGS+=("+verilator+coverage+file+$COVERAGE_FILE")
+fi
+"$EXE" "${SIM_ARGS[@]}" 2>&1 | tee "$LOG"
 sim_status=${PIPESTATUS[0]}
 set -e
 
 if [ "$sim_status" -ne 0 ]; then
     echo "rustdv: Verilator host exited $sim_status" >&2
     exit "$sim_status"
+fi
+if [ -n "$COVERAGE_FILE" ] && [ ! -s "$COVERAGE_FILE" ]; then
+    echo "rustdv: Verilator host did not write coverage: $COVERAGE_FILE" >&2
+    exit 1
 fi
 if grep -q "REGRESSION: FAIL" "$LOG"; then
     echo "rustdv: regression reported failure" >&2

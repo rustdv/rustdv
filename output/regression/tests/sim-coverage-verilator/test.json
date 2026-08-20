@@ -1,0 +1,19 @@
+{
+  "comment": "A coverage-instrumented Verilator model writes non-empty line/expression coverage after the ordinary RustDV VPI-finish path.",
+  "cmd": ["bash", "output/regression/tests/sim-coverage-verilator/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "REGRESSION: PASS",
+    "COVERAGE PASS PATH: PASS",
+    "COVERAGE POST-FINAL ORDER: PASS",
+    "COVERAGE FAILURE PATH: PASS",
+    "COVERAGE UNINSTRUMENTED REJECTION: PASS",
+    "COVERAGE FAST UNINSTRUMENTED: PASS",
+    "COVERAGE DESTINATION REJECTION: PASS",
+    "COVERAGE UNWRITABLE REJECTION: PASS",
+    "RTL FINAL: PASS"
+  ]
+}

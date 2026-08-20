@@ -10,6 +10,10 @@
 #include "verilated.h"
 #include "verilated_vpi.h"
 
+#if VM_COVERAGE
+#include "verilated_cov.h"
+#endif
+
 #if VM_TRACE_FST
 #include "verilated_fst_c.h"
 #endif
@@ -470,6 +474,10 @@ int main(int argc, char** argv, char**) {
         }
     }
     runtime_tracep = nullptr;
+
+#if VM_COVERAGE
+    contextp->coveragep()->write();
+#endif
 
     contextp->statsPrintSummary();
     return scheduler_ok ? 0 : 1;

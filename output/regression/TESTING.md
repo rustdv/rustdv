@@ -87,6 +87,12 @@ regression.
   The simulator smoke tests (`tests/sim-*`) use this: they run where
   Icarus/Verilator are installed (including CI) and skip elsewhere.
 
+`custom/sim-coverage-verilator` exercises the coverage-specific host contract:
+line and expression points, bench control-file selection, database emission
+after an RTL `final` block, retention on an orderly failed regression, explicit
+destination errors, and proof that the ordinary FAST model is compiled with
+coverage disabled.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs the full no-simulator regression plus a
