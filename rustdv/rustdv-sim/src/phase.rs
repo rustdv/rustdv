@@ -33,11 +33,11 @@ enum WriteVal {
 
 struct Hub {
     phase: Cell<SimPhase>,
-    rw_waiters: RefCell<Vec<Waker>>,
+    rw_waiters: RefCell<Vec<(Rc<Cell<bool>>, Rc<RefCell<Waker>>)>>,
     rw_cb: RefCell<Option<gpi::CallbackHandle>>,
-    ro_waiters: RefCell<Vec<Waker>>,
+    ro_waiters: RefCell<Vec<(Rc<Cell<bool>>, Rc<RefCell<Waker>>)>>,
     ro_cb: RefCell<Option<gpi::CallbackHandle>>,
-    nt_waiters: RefCell<Vec<Waker>>,
+    nt_waiters: RefCell<Vec<(Rc<Cell<bool>>, Rc<RefCell<Waker>>)>>,
     nt_cb: RefCell<Option<gpi::CallbackHandle>>,
     writes: RefCell<Vec<(gpi::LogicHandle, WriteVal)>>,
 }
@@ -67,6 +67,10 @@ fn hub() -> Rc<Hub> {
 
 pub fn current_phase() -> SimPhase {
     hub().phase.get()
+}
+
+pub(crate) fn current_phase_if_initialized() -> Option<SimPhase> {
+    HUB.with(|hub| hub.borrow().as_ref().map(|hub| hub.phase.get()))
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +169,9 @@ fn prime_rw(hub: &Rc<Hub>) {
         for (sig, val) in &writes {
             apply_write(*sig, val);
         }
-        for w in h.rw_waiters.borrow_mut().drain(..) {
-            w.wake();
+        for (fired, w) in h.rw_waiters.borrow_mut().drain(..) {
+            fired.set(true);
+            w.borrow().wake_by_ref();
         }
         executor::current().run_until_idle();
         h.phase.set(SimPhase::Normal);
@@ -182,8 +187,9 @@ fn prime_ro(hub: &Rc<Hub>) {
     let cb = gpi::register_read_only(Box::new(move || {
         h.ro_cb.borrow_mut().take();
         h.phase.set(SimPhase::ReadOnly);
-        for w in h.ro_waiters.borrow_mut().drain(..) {
-            w.wake();
+        for (fired, w) in h.ro_waiters.borrow_mut().drain(..) {
+            fired.set(true);
+            w.borrow().wake_by_ref();
         }
         executor::current().run_until_idle();
         h.phase.set(SimPhase::Normal);
@@ -198,8 +204,9 @@ fn prime_nt(hub: &Rc<Hub>) {
     let h = hub.clone();
     let cb = gpi::register_next_sim_time(Box::new(move || {
         h.nt_cb.borrow_mut().take();
-        for w in h.nt_waiters.borrow_mut().drain(..) {
-            w.wake();
+        for (fired, w) in h.nt_waiters.borrow_mut().drain(..) {
+            fired.set(true);
+            w.borrow().wake_by_ref();
         }
         executor::current().run_until_idle();
     }));
@@ -219,52 +226,109 @@ enum PhaseKind {
 
 pub struct PhaseFut {
     kind: PhaseKind,
-    registered: bool,
+    fired: Option<Rc<Cell<bool>>>,
+    waker: Option<Rc<RefCell<Waker>>>,
 }
 
 impl Future for PhaseFut {
     type Output = ();
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        if self.registered {
-            return Poll::Ready(());
+        if let Some(fired) = &self.fired {
+            return if fired.get() {
+                Poll::Ready(())
+            } else {
+                if let Some(waker) = &self.waker {
+                    *waker.borrow_mut() = cx.waker().clone();
+                }
+                Poll::Pending
+            };
         }
         let hub = hub();
+        let fired = Rc::new(Cell::new(false));
+        let waker = Rc::new(RefCell::new(cx.waker().clone()));
         match self.kind {
             PhaseKind::ReadWrite => {
                 if hub.phase.get() == SimPhase::ReadOnly {
                     panic!("awaiting ReadWrite from the ReadOnly phase is illegal (cocotb rule)");
                 }
-                hub.rw_waiters.borrow_mut().push(cx.waker().clone());
+                hub.rw_waiters
+                    .borrow_mut()
+                    .push((fired.clone(), waker.clone()));
                 prime_rw(&hub);
             }
             PhaseKind::ReadOnly => {
                 if hub.phase.get() == SimPhase::ReadOnly {
                     panic!("awaiting ReadOnly from the ReadOnly phase is illegal (cocotb rule)");
                 }
-                hub.ro_waiters.borrow_mut().push(cx.waker().clone());
+                hub.ro_waiters
+                    .borrow_mut()
+                    .push((fired.clone(), waker.clone()));
                 prime_ro(&hub);
             }
             PhaseKind::NextTimeStep => {
-                hub.nt_waiters.borrow_mut().push(cx.waker().clone());
+                hub.nt_waiters
+                    .borrow_mut()
+                    .push((fired.clone(), waker.clone()));
                 prime_nt(&hub);
             }
         }
-        self.registered = true;
+        self.fired = Some(fired);
+        self.waker = Some(waker);
         Poll::Pending
     }
 }
 
 /// Await the next ReadWrite phase (port of `ReadWrite()`).
 pub fn read_write() -> PhaseFut {
-    PhaseFut { kind: PhaseKind::ReadWrite, registered: false }
+    PhaseFut {
+        kind: PhaseKind::ReadWrite,
+        fired: None,
+        waker: None,
+    }
 }
 
 /// Await the next ReadOnly phase (port of `ReadOnly()`).
 pub fn read_only() -> PhaseFut {
-    PhaseFut { kind: PhaseKind::ReadOnly, registered: false }
+    PhaseFut {
+        kind: PhaseKind::ReadOnly,
+        fired: None,
+        waker: None,
+    }
+}
+
+/// Run one synchronous service operation at a settled ReadOnly point.
+///
+/// The closure runs on the simulator thread from inside the simulator's
+/// ReadOnly callback, after pending writes and combinational logic have
+/// reached a fixed point. It may communicate with other OS threads through
+/// ordinary synchronization primitives. While it is waiting, the simulator
+/// callback cannot return, so simulation time remains frozen. Returning the
+/// closure's value releases the simulator to advance normally.
+///
+/// # Blocking and cancellation
+///
+/// Any wait in `service` must be bounded by wall-clock time or use a
+/// cooperative cancellation signal. A simulation-time timeout cannot fire
+/// while this function holds ReadOnly, and RustDV cannot forcibly recover an
+/// arbitrary blocking closure. An unbounded wait will therefore wedge the
+/// simulation.
+///
+/// This is opt-in and transport-neutral: RustDV does not create a worker,
+/// scheduler, or server. A testbench supplies both the service closure and any
+/// channels or synchronization it needs.
+pub async fn service_read_only<F, R>(service: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    read_only().await;
+    service()
 }
 
 /// Await the next simulator time step (port of `NextTimeStep()`).
 pub fn next_time_step() -> PhaseFut {
-    PhaseFut { kind: PhaseKind::NextTimeStep, registered: false }
+    PhaseFut {
+        kind: PhaseKind::NextTimeStep,
+        fired: None,
+        waker: None,
+    }
 }

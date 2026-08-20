@@ -27,13 +27,14 @@ pub mod sync;
 pub mod testing;
 pub mod time;
 pub mod triggers;
+pub mod verilator_trace;
 
 pub use clock::Clock;
 pub use combinators::{first2, join2, join_all, with_timeout, Either, TimeoutError};
 pub use executor::{spawn, spawn_named, Executor, TaskError, TaskHandle, TaskId, TaskState};
 pub use path::RustdvPath;
 pub use handle::{AnyHandle, HierarchyHandle, LogicHandle};
-pub use phase::{read_only, read_write, next_time_step};
+pub use phase::{next_time_step, read_only, read_write, service_read_only};
 pub use queue::Queue;
 pub use rng::Rng;
 pub use sync::{Event, Lock, LockGuard};

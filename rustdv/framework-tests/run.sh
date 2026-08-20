@@ -5,8 +5,8 @@
 #
 # With no argument every test in the crate runs. With one, RUSTDV_TESTCASE
 # selects a group by name prefix — `trig_`, `clock_`, `sig_`, `conc_`,
-# `elab_`, `runner_`, `callback_stress_` — which is how the regression gets
-# one entry per mechanism off a single build.
+# `elab_`, `runner_`, `callback_stress_`, `stable_point_` — which is how the
+# regression gets one entry per mechanism off a single build.
 #
 # Success criterion: prints "REGRESSION: PASS".
 set -euo pipefail
@@ -37,7 +37,7 @@ case "$SIM" in
     vvp -M "$BUILD" -m framework_tests "$BUILD/probe.vvp"
     ;;
   verilator)
-    export RUSTDV_VERILATOR_MODE=framework
+    export RUSTDV_VERILATOR_MODE="${RUSTDV_VERILATOR_MODE:-framework}"
     "$REPO_ROOT/sim/run_verilator.sh" "$LIB" probe "$BUILD/verilator" \
       "$REPO_ROOT/rustdv/framework-tests/hdl/probe.sv"
     ;;

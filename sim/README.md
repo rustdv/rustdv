@@ -38,19 +38,29 @@ Run the Rust testbench with either backend:
 sim/run_rustdv.sh release icarus
 sim/run_rustdv.sh release verilator
 RUSTDV_VERILATOR_MODE=debug sim/run_rustdv.sh release verilator
+RUSTDV_VERILATOR_MODE=record sim/run_rustdv.sh release verilator
+RUSTDV_VERILATOR_MODE=inspect sim/run_rustdv.sh release verilator
+RUSTDV_VERILATOR_MODE=coverage \
+RUSTDV_COVERAGE_FILE=/tmp/rustdv-coverage/tinyalu.dat \
+  sim/run_rustdv.sh release verilator
 ```
 
-The last command writes an FST under `/tmp/rustdv-$(id -u)/`. FAST exposes
-only top-level ports; DEBUG adds the signals in a Verilator control file; the
-small framework probe alone uses full visibility. Verilator 5.050 or newer is
-required for runtime VPI library loading.
+DEBUG writes an FST under `/tmp/rustdv-$(id -u)/`. FAST exposes only top-level
+ports; DEBUG adds the signals in a Verilator control file and records an FST
+from time zero. RECORD compiles all-signal FST instrumentation but does not
+open a trace until `rustdv::sim::verilator_trace` arms a private runtime
+capture at settled ReadOnly. INSPECT adds selected VPI visibility without FST
+instrumentation. Calling runtime trace control in FAST or INSPECT returns a
+structured unsupported-capability error. The small framework probe alone uses
+full VPI visibility. Verilator 5.050 or newer is required for runtime VPI
+library loading.
 
 Useful Verilator controls are:
 
 | Variable | Values | Purpose |
 |---|---|---|
-| `RUSTDV_VERILATOR_MODE` | `fast`, `debug`, `framework` | visibility and tracing policy |
-| `RUSTDV_VERILATOR_CONTROL_FILE` | path to `.vlt` | selected DEBUG internals |
+| `RUSTDV_VERILATOR_MODE` | `fast`, `debug`, `record`, `inspect`, `framework` | visibility and tracing policy |
+| `RUSTDV_VERILATOR_CONTROL_FILE` | path to `.vlt` | selected DEBUG/RECORD/INSPECT internals |
 | `RUSTDV_FST` | output path | DEBUG waveform location |
 | `RUSTDV_VERILATOR_OPT` | `default`, `o3` | generated-model optimization |
 | `RUSTDV_VERILATOR_THREADS` | `1`, `2`, `4` | Verilated model threads |
@@ -71,6 +81,23 @@ sim/run_rustdv.sh release verilator
 Verilator is a two-state simulator; use Icarus for X/Z behavior and exact book
 transcripts. The shared host is correctness-critical: it advances to the
 earliest RTL event or VPI deadline and settles VPI writes before ReadOnly.
+
+COVERAGE is a separate line/expression-instrumented build. It writes the
+Verilator coverage database after the RTL `final` block and end-of-simulation
+callbacks on every orderly termination path. A failed RustDV regression still
+returns failure, but its database is retained for diagnosis. A bench may set
+`RUSTDV_VERILATOR_CONTROL_FILE` to a Verilator control file containing
+`coverage_on`/`coverage_off` rules. FST tracing is deliberately rejected in
+this profile; use separate build directories for FAST, waves, and coverage.
+Inspect a database with, for example:
+
+```sh
+verilator_coverage --report summary /tmp/rustdv-coverage/tinyalu.dat
+verilator_coverage --annotate coverage-html /tmp/rustdv-coverage/tinyalu.dat
+```
+
+FAST remains entirely uninstrumented and rejects `RUSTDV_COVERAGE_FILE` so a
+misconfigured task cannot silently claim to have collected coverage.
 
 Commercial-simulator invocations are the standard ones but **untested here**
 — public CI cannot hold EDA licenses. If you have a license and the command

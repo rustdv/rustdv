@@ -11,6 +11,7 @@ repository = "https://github.com/rustdv/rustdv"
 path = "src/rustdv_sim.rs"
 
 [dependencies]
+libloading = "0.8"
 rustdv-gpi = { path = "../rustdv-gpi", version = "0.2.0" }
 
 [dev-dependencies]

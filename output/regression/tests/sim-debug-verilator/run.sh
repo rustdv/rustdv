@@ -13,3 +13,16 @@ if [ ! -s "$FST" ]; then
     exit 1
 fi
 echo "FST: PASS ($FST)"
+
+INVALID_FST="$BUILD/missing-parent/capture.fst"
+rm -rf "$(dirname "$INVALID_FST")"
+set +e
+SIM_BUILD_DIR="$BUILD" RUSTDV_VERILATOR_MODE=debug RUSTDV_FST="$INVALID_FST" \
+    bash sim/run_rustdv.sh release verilator
+INVALID_STATUS=$?
+set -e
+if [ "$INVALID_STATUS" -eq 0 ] || [ -e "$INVALID_FST" ]; then
+    echo "FST OPEN FAILURE: FAIL — invalid destination was accepted" >&2
+    exit 1
+fi
+echo "FST OPEN FAILURE: PASS"
