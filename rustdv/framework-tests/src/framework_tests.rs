@@ -36,9 +36,12 @@
 //! | `elab_` | [`elaboration`] | unconnected ports fail before the run phase |
 //! | `runner_` | [`runner`] | timeouts, `expect_error`, per-test freshness |
 //! | `callback_stress_` | [`callback_lifecycle`] | fired one-shot handles reach an RSS plateau |
+//! | `vpi_` | [`vpi_regressions`] | Verilator class scopes and struct-valued top ports |
 //!
 //! The DUT is `hdl/probe.sv`: a clock, signals of known widths that nothing
 //! drives, and one counter so an edge trigger has something to trigger on.
+//! The two `vpi_` regressions use their own focused HDL tops because their
+//! hierarchy shapes are the behavior under test.
 
 use rustdv::prelude::*;
 
@@ -79,6 +82,7 @@ pub mod elaboration;
 pub mod runner;
 pub mod signals;
 pub mod triggers;
+pub mod vpi_regressions;
 
 /// How many simulator time steps make one nanosecond, measured rather than
 /// assumed.

@@ -124,7 +124,7 @@ impl AnyHandle {
             sys::vpiModule => AnyHandle::Hierarchy(HierarchyHandle { h }),
             sys::vpiNet | sys::vpiReg | sys::vpiIntegerVar | sys::vpiPort | sys::vpiMemory
             | sys::vpiLongIntVar | sys::vpiShortIntVar | sys::vpiIntVar | sys::vpiByteVar
-            | sys::vpiEnumVar | sys::vpiBitVar => {
+            | sys::vpiEnumVar | sys::vpiStructVar | sys::vpiBitVar => {
                 // Signal width is immutable for the lifetime of a VPI
                 // object. Cache it at discovery so every value read/write
                 // does not pay for another vpi_get(vpiSize) crossing.
@@ -402,9 +402,16 @@ pub fn top_modules() -> Vec<HierarchyHandle> {
     out
 }
 
-/// The first top-level module (the DUT in single-top designs).
+/// The first non-class/non-package top-level module (the DUT in single-top 
+/// designs).
 pub fn top_module() -> Result<HierarchyHandle, HandleError> {
-    top_modules().into_iter().next().ok_or(HandleError::NoTopModule)
+    let modules = top_modules();
+    modules
+        .iter()
+        .copied()
+        .find(|module| !module.name().contains("_Vclpkg"))
+        .or_else(|| modules.into_iter().next())
+        .ok_or(HandleError::NoTopModule)
 }
 
 // ===========================================================================

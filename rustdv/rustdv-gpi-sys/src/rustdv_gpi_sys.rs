@@ -55,6 +55,7 @@ pub const vpiShortIntVar: PLI_INT32 = 611;
 pub const vpiIntVar: PLI_INT32 = 612;
 pub const vpiByteVar: PLI_INT32 = 614;
 pub const vpiEnumVar: PLI_INT32 = 617;
+pub const vpiStructVar: PLI_INT32 = 618;
 pub const vpiBitVar: PLI_INT32 = 620;
 
 // ---------------------------------------------------------------------------

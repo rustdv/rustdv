@@ -1,0 +1,19 @@
+{
+  "comment": "Verilator VPI discovery: aggregate structs used as top-level ports are vpiStructVar objects and must be available through rustdv's LogicHandle API.",
+  "cmd": ["bash", "rustdv/framework-tests/run.sh"],
+  "cwd": ".",
+  "skip_if_missing": "verilator",
+  "env": {
+    "SIM": "verilator",
+    "RUSTDV_TESTCASE": "vpi_struct_top_ports_are_logic",
+    "RUSTDV_TOP": "struct_ports_top",
+    "RUSTDV_HDL": "rustdv/framework-tests/hdl/struct_ports_top.sv"
+  },
+  "expect_exit": 0,
+  "timeout": 600,
+  "expect_in_output": [
+    "rustdv: found 1 test(s)",
+    "vpi_struct_top_ports_are_logic PASSED",
+    "REGRESSION: PASS"
+  ]
+}
