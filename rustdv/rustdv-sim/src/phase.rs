@@ -112,6 +112,10 @@ pub fn current_phase() -> SimPhase {
     hub().phase.get()
 }
 
+pub(crate) fn current_phase_if_initialized() -> Option<SimPhase> {
+    HUB.with(|hub| hub.borrow().as_ref().map(|hub| hub.phase.get()))
+}
+
 // ---------------------------------------------------------------------------
 // Leaving ReadOnly (D108)
 // ---------------------------------------------------------------------------
@@ -337,6 +341,34 @@ pub fn read_only() -> PhaseFut {
         kind: PhaseKind::ReadOnly,
         shared: None,
     }
+}
+
+/// Run one synchronous service operation at a settled ReadOnly point.
+///
+/// The closure runs on the simulator thread from inside the simulator's
+/// ReadOnly callback, after pending writes and combinational logic have
+/// reached a fixed point. It may communicate with other OS threads through
+/// ordinary synchronization primitives. While it is waiting, the simulator
+/// callback cannot return, so simulation time remains frozen. Returning the
+/// closure's value releases the simulator to advance normally.
+///
+/// # Blocking and cancellation
+///
+/// Any wait in `service` must be bounded by wall-clock time or use a
+/// cooperative cancellation signal. A simulation-time timeout cannot fire
+/// while this function holds ReadOnly, and RustDV cannot forcibly recover an
+/// arbitrary blocking closure. An unbounded wait will therefore wedge the
+/// simulation.
+///
+/// This is opt-in and transport-neutral: RustDV does not create a worker,
+/// scheduler, or server. A testbench supplies both the service closure and any
+/// channels or synchronization it needs.
+pub async fn service_read_only<F, R>(service: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    read_only().await;
+    service()
 }
 
 /// Await the next simulator time step (port of `NextTimeStep()`).

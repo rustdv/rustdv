@@ -1,0 +1,5 @@
+`verilator_config
+
+// The runtime trace regression uses the framework probe, whose test-driven
+// signals are internal variables rather than top-level ports.
+public_flat_rw -module "probe" -var "*"

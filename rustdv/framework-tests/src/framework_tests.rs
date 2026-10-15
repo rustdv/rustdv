@@ -37,6 +37,7 @@
 //! | `runner_` | [`runner`] | timeouts, `expect_error`, per-test freshness |
 //! | `sv_types_` | `sv_types` (Verilator feature) | real/string writes and aggregate members |
 //! | `callback_stress_` | [`callback_lifecycle`] | fired one-shot handles reach an RSS plateau |
+//! | `stable_point_` | [`triggers`] | synchronous service at settled ReadOnly |
 //!
 //! The DUT is `hdl/probe.sv`: a clock, signals of known widths that nothing
 //! drives, and one counter so an edge trigger has something to trigger on.

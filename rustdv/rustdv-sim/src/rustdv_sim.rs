@@ -23,10 +23,12 @@ pub mod path;
 pub mod phase;
 pub mod queue;
 pub mod rng;
+pub mod simulator_trace;
 pub mod sync;
 pub mod testing;
 pub mod time;
 pub mod triggers;
+pub mod verilator_trace;
 
 pub use clock::Clock;
 pub use combinators::{Either, TimeoutError, first2, join_all, join2, with_timeout};
@@ -35,7 +37,7 @@ pub use handle::{
     AggregateHandle, HierarchyHandle, LogicHandle, RealHandle, SimHandle, StringHandle,
 };
 pub use path::RustdvPath;
-pub use phase::{next_time_step, read_only, read_write};
+pub use phase::{next_time_step, read_only, read_write, service_read_only};
 pub use queue::Queue;
 pub use rng::Rng;
 pub use sync::{Event, Lock, LockGuard};

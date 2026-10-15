@@ -49,8 +49,8 @@ pub use rustdv_sim::{
     SimDuration, SimHandle, StringHandle, TaskError, TaskHandle, TaskState, TimeoutError, Timer,
     ValueError, first2,
     handle::{HandleChildren, HandleEvent},
-    join2, next_time_step, read_only, read_write, sim_time_ns, sim_time_steps, spawn, spawn_named,
-    with_timeout,
+    join2, next_time_step, read_only, read_write, service_read_only, sim_time_ns, sim_time_steps,
+    spawn, spawn_named, with_timeout,
 };
 
 pub use rustdv_methodology::{
@@ -91,8 +91,8 @@ pub mod prelude {
         Subscriber, TaskHandle, TestError, Timer, TlmFifo, TxnId, build_all, channel, check_all,
         connect_all, create_seq, end_of_elaboration_all, extract_all, final_all, first2, join2,
         next_time_step, print_hierarchy, read_only, read_write, report_all, run_component_test,
-        run_extract_check_report, set_seq_override, sim_time_ns, spawn, spawn_named, start_all,
-        start_of_simulation_all, with_timeout,
+        run_extract_check_report, service_read_only, set_seq_override, sim_time_ns, spawn,
+        spawn_named, start_all, start_of_simulation_all, with_timeout,
     };
 }
 
