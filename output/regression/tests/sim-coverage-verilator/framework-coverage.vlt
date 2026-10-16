@@ -1,0 +1,6 @@
+`verilator_config
+
+// The post-final ordering probe has no top-level ports. Keep its internal test
+// signals visible using the same caller-provided control-file path as a real
+// coverage bench, without relying on the private framework build mode.
+public_flat_rw -module "probe" -var "*"
