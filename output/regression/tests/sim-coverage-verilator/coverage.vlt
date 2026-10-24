@@ -1,0 +1,5 @@
+`verilator_config
+
+// The regression still executes multiplication, but deliberately excludes its
+// implementation so the test proves this bench-owned control file was applied.
+coverage_off -file "*tinyalu.sv" -lines 68-103

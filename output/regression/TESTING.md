@@ -91,6 +91,12 @@ When a custom test is missing an expected output marker, the runner prints
 the captured command output after the failure summary so the underlying
 simulator assertion is visible in CI.
 
+`custom/sim-coverage-verilator` exercises the coverage-specific host contract:
+line and expression points, bench control-file selection, database emission
+after an RTL `final` block, retention on an orderly failed regression, explicit
+destination errors, and proof that the ordinary FAST model is compiled with
+coverage disabled.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs the full no-simulator regression plus a
