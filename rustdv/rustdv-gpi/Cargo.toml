@@ -1,6 +1,6 @@
 [package]
 name = "rustdv-gpi"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Safe wrapper over the simulator interface: handles, values, callbacks, sim time. All unsafe code in the rustdv workspace lives here (design-doc §3.3)."
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ path = "src/rustdv_gpi.rs"
 
 [dependencies]
 num-bigint = "0.5.1"
-rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.2.0" }
+rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.3.0" }
 
 [dev-dependencies]
-rustdv-vpi-stubs = { path = "../rustdv-vpi-stubs", version = "0.2.0" }
+rustdv-vpi-stubs = { path = "../rustdv-vpi-stubs", version = "0.3.0" }

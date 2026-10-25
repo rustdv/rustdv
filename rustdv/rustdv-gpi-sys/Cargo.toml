@@ -1,6 +1,6 @@
 [package]
 name = "rustdv-gpi-sys"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Raw FFI declarations for the simulator programming interface. v0: hand-written VPI (IEEE 1800) subset for Icarus Verilog; the design-doc's bindgen-from-gpi.h remains the target once cocotb's GPI library can be built in-environment."
 license = "MIT OR Apache-2.0"

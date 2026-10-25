@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 [package]
 name = "rustdv"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A hardware verification framework in Rust: cocotb-style simulator coroutines plus a UVM-analog testbench library."
 license = "MIT OR Apache-2.0"
@@ -19,8 +19,8 @@ path = "src/rustdv.rs"
 
 [dependencies]
 linkme = "0.3"
-rustdv-gpi = { path = "rustdv-gpi", version = "0.2.0" }
-rustdv-sim = { path = "rustdv-sim", version = "0.2.0" }
-rustdv-methodology = { path = "rustdv-methodology", version = "0.2.0" }
-rustdv-macros = { path = "rustdv-macros", version = "0.2.0" }
-rustdv-runner = { path = "rustdv-runner", version = "0.2.0" }
+rustdv-gpi = { path = "rustdv-gpi", version = "0.3.0" }
+rustdv-sim = { path = "rustdv-sim", version = "0.3.0" }
+rustdv-methodology = { path = "rustdv-methodology", version = "0.3.0" }
+rustdv-macros = { path = "rustdv-macros", version = "0.3.0" }
+rustdv-runner = { path = "rustdv-runner", version = "0.3.0" }

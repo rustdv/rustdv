@@ -1,6 +1,6 @@
 [package]
 name = "rustdv-vpi-stubs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "VPI symbol definitions and callback test double for cargo-test executables. Dev-dependency only — never linked into simulator-loaded cdylibs."
 license = "MIT OR Apache-2.0"
@@ -11,4 +11,4 @@ repository = "https://github.com/rustdv/rustdv"
 path = "src/rustdv_vpi_stubs.rs"
 
 [dependencies]
-rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.2.0" }
+rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.3.0" }
