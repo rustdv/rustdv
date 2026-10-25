@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "rustdv"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "linkme",
  "rustdv-gpi",
@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 name = "rustdv-gpi"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "num-bigint",
  "rustdv-gpi-sys",
@@ -337,11 +337,11 @@ dependencies = [
 
 [[package]]
 name = "rustdv-gpi-sys"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "rustdv-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "rustdv-methodology"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "linkme",
  "rustdv-sim",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "rustdv-runner"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "linkme",
  "rustdv-gpi",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "rustdv-sim"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "libloading",
  "rustdv-gpi",

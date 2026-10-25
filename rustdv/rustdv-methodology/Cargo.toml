@@ -1,6 +1,6 @@
 [package]
 name = "rustdv-methodology"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "The verification methodology layer: component lifecycle and phases, ConfigDb, factory, objections, channels, analysis broadcast, TLM FIFOs, and the sequencer handshake (design-doc §5)."
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ path = "src/rustdv_methodology.rs"
 
 [dependencies]
 linkme = "0.3"
-rustdv-sim = { path = "../rustdv-sim", version = "0.2.0" }
+rustdv-sim = { path = "../rustdv-sim", version = "0.3.0" }
 
 [dev-dependencies]
-rustdv-vpi-stubs = { path = "../rustdv-vpi-stubs", version = "0.2.0" }
+rustdv-vpi-stubs = { path = "../rustdv-vpi-stubs", version = "0.3.0" }
