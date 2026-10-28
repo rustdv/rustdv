@@ -138,3 +138,16 @@ that configuration bugs are caught by the compiler — Figure 1 demonstrated a
 database is `"env.loga"` versus `"env.logA"`: a string, resolved at run time,
 that no compiler will ever check. Late binding costs you compile-time
 checking and buys you these tools instead. That trade is the honest version.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-28-config-debugging](../../../book-pdf/src/chapter-28-config-debugging.md).
+
+- Teach ConfigError variants, dump output, tracing, and expect_error as tools for
+  runtime configuration. Do not resurrect compile-fail demonstrations for runtime
+  config conflicts.
+- Take the complete current dump/trace excerpts and figure map from this crate’s
+  README, including the MESG/MSG spelling comparison and precedence behavior.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

@@ -115,3 +115,21 @@ REGRESSION: PASS
   `start_item` inside a virtual sequence a compile error instead of a run-time
   one, and would forbid a shape the UVM allows. A better error message, at the
   cost of a capability.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-39-virtual-sequence-testbench-8.0](../../../book-pdf/src/chapter-39-virtual-sequence-testbench-8.0.md).
+
+- A virtual sequence starts other sequences and sends no items of its own;
+  start_virtual is the explicit no-sequencer entry point. Preserve both sequential
+  and parallel composition.
+- Do not add a separate VirtualSequence trait that forbids shapes the UVM permits.
+  Explain restrictions and errors at the point the source actually enforces them.
+- Keep OpSeq and the operation helpers as a programming interface, including the
+  Fibonacci composition. The chapter is more than another stimulus override.
+- Preserve the deliberate presentation order of tests/helpers and the existing
+  uncaptioned listings; check the current README instead of replaying historical
+  caption shifts.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

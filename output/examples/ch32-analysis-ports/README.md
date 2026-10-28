@@ -121,3 +121,27 @@ The last test is the one to read for timing: the source's three writes all land
 at `0.00ns` — a publisher is never held up by what a subscriber does with an
 item — while the checker's results come out at 5, 10 and 15ns as it works
 through its own queue.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-32-analysis-ports](../../../book-pdf/src/chapter-32-analysis-ports.md).
+
+- AnalysisBus stores no transactions: it synchronously calls subscribers and
+  returns; a value with no subscriber is gone. Storage belongs to the subscriber.
+- The plain struct implementing write is the Subscriber; a component hosts it.
+  Connect chooses a stream, subscribe supplies a receiver. Explain the difference
+  from uvm_subscriber as a component.
+- A subscriber needing simulated time enqueues into its own unbounded FIFO during
+  write, and its component run processes the inbox asynchronously. The FIFO is an
+  internal handoff, not a port connection; bounded storage cannot provide analysis
+  backpressure.
+- Preserve the slow-subscriber transcript’s distinction between immediate writes
+  and later processing. Chapter 34 demonstrates two input streams and two
+  Subscriber implementations without imp_decl macros.
+- Keep the FIFO-tap example near the end, after subscribers: TapLog/TapWatcher,
+  FifoTapTest, and its transcript. Reuse the already-taught Producer/Consumer
+  without reteaching their implementations. Taps observe traffic without taking
+  items or delaying the queue.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

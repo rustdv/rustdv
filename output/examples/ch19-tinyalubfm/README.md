@@ -48,3 +48,17 @@ Transcript (RUSTDV_RANDOM_SEED=1) — same operands as Chapter 18, on purpose:
 ******************************************************************************
 REGRESSION: PASS
 ```
+
+## Preserve these teaching points
+
+Manuscript: [chapter-19-tinyalubfm](../../../book-pdf/src/chapter-19-tinyalubfm.md).
+
+- The BFM waits on RTL clock edges; it does not instantiate Clock for the self-
+  clocked TinyALU. Edge waiting is the interface that can also be supplied by an
+  emulator/transactor.
+- Keep the ownership and lifetime explanation aligned with the actual queue-fed
+  tasks and their capture behavior. Changes to timing or file/line layout require
+  synchronized README/manuscript transcripts.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

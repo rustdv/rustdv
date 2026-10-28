@@ -19,3 +19,21 @@ sim-common/run_sim.sh ch17_simulating_with_rustdv_sim counter \
 | 7 | Forgetting the await is now a compiler warning | `src/ch17_simulating_with_rustdv_sim.rs` (`oops`) — the build emits the warning shown in the book, on purpose |
 
 All 4 tests end `REGRESSION: PASS` (RUSTDV_RANDOM_SEED=1).
+
+## Preserve these teaching points
+
+Manuscript: [chapter-17-simulating-with-rustdv-sim](../../../book-pdf/src/chapter-17-simulating-with-rustdv-sim.md).
+
+- Keep the counter as the example that needs a software Clock. The TinyALU in
+  later chapters supplies its own clock.
+- Preserve the typed signal overview: unsigned primitive and BigUint access, X/Z
+  and width errors, four-state LogicArray ordering, and real/string/aggregate
+  access where VPI supports it.
+- Explain HandleChildren/HandleEvent imports, explicit HandleBase metadata access,
+  SimHandle conversions, and RUSTDV_TOP root selection accurately.
+- An edge does not guarantee settled combinational outputs. ReadWrite applies
+  scheduled writes before waking waiters; ReadOnly is settled sampling and
+  disallows writes or another ReadOnly/ReadWrite await.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

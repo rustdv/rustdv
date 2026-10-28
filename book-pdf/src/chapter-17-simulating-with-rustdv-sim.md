@@ -10,7 +10,7 @@ Under cocotb sits a C++ layer called the GPI — the *Generic Procedural Interfa
 
 rustdv speaks to the simulator through the same procedural interfaces, and its layering copies cocotb's on purpose: a `-sys` crate of raw simulator bindings at the bottom, a safe wrapper crate above it that turns null pointers into `Err` and untracked lifetimes into owned types, and `rustdv-sim` — everything you met in Chapters 15 and 16 — on top.¹ The mechanical difference from cocotb is *what* the simulator loads: where cocotb's makefiles arranged for the simulator to start an embedded Python interpreter that imports your test module, a rustdv testbench **compiles to a shared library** that the simulator loads directly, the way it would load any VPI plugin. That is the story behind the two ceremony lines from Chapter 15: `vpi_bootstrap!()` exports the entry points the simulator calls at startup, and the chapter run scripts hand `vvp` (Icarus's runtime) our compiled library alongside the compiled design. No interpreter starts, because there is nothing to interpret; the testbench *is* native code, checked before the simulator ever ran.
 
-> ¹ On Icarus, today, the bottom crate binds VPI directly. rustdv's plan is to adopt cocotb's own GPI library — inheriting its VHPI/FLI reach — as the multi-simulator step; the safe layer above is shaped so that swap stays invisible to testbench code.
+> ¹ The supplied Icarus and Verilator backends both bind VPI directly. Icarus provides the four-state reference runs in this book; Verilator provides two-state functional simulation. The cocotb layering explains the names, but it does not imply that rustdv implements cocotb's VHPI or FLI backends.
 
 ## Verifying a counter
 
@@ -57,6 +57,10 @@ async fn name_lookup(ctx: RustdvCtx) -> Result<(), TestError> {
 
 In real code nobody matches on these by hand — you write `let reset_n = dut.signal("reset_n")?;` and the `?` from Chapter 9 turns a bad name into an immediate, test-failing error naming the signal *and* the scope, at time zero, before anything subtle has had a chance to happen. `dut.child("name")` is the general form for descending the hierarchy (submodules and all); `signal()` is `child()` plus an is-it-a-signal check.²
 
+The launcher selects the DUT root by exporting `RUSTDV_TOP` with its module name. Without that variable, rustdv uses the first top-level module VPI returns. Select the root explicitly when another top-level module also exists, such as a waveform dumper; the shipped launchers already do this.
+
+The prelude brings the handle traits into scope: `HandleChildren` supplies lookup and traversal, and `HandleEvent` supplies edge triggers. A general `child()` lookup returns a `SimHandle`; `as_signal()?` or `as_hierarchy()?` checks its kind and reports a `HandleError` on a mismatch. To call a handle's `name()` or `full_name()`, also import `rustdv::sim::handle::HandleBase`.
+
 The handle you get back, `LogicHandle`, is typed: it reads and writes logic values and offers edge triggers, and that is all it does. Two figures from the Python chapter dissolve entirely here — the `sys.path` bootstrap (Chapter 14 deleted it with prejudice) and the logger setup (`rustdv::log` initializes itself, and Chapter 26 covers levels). The third `tinyalu_utils` resident, `get_int()`, is worth porting for the pleasure of it:
 
 ```rust
@@ -69,6 +73,16 @@ fn get_int(signal: &LogicHandle) -> u64 {
 ```
 
 `get_u64()` returns `Result<u64, ValueError>` because a signal holding `x` or `z` has no integer value — the fact Python expressed by `int()` raising `ValueError`, and SystemVerilog expressed by letting the `x` ride silently into your arithmetic. The Python version needed a four-line `try/except`; Rust's `unwrap_or(0)` says "the value, or zero" in one expression. The policy remains testbench-specific: a testbench that would rather die on `x` writes `get_u64()?` instead, and either way the x-handling decision is visible in the code, per read, instead of ambient in the semantics.
+
+## Choosing the value representation
+
+The counter fits in `u64`, but the handle API also provides `get_bool()`, `get_u8()`, `get_u16()`, `get_u32()`, and `get_u128()`, with matching setters such as `set_u8()`. These integer reads are unsigned. They reject X/Z and reject a signal wider than the requested type; `get_bool()` requires one bit. `get_bigint()` and `set_bigint(&value)` use `BigUint` for arbitrary-width buses. A width error and an unknown bit are both errors, so a helper such as `get_int()` above deliberately maps either one to zero. Use `?` when either should fail the test.
+
+To keep all four states, read `get_logic()?` into a `LogicArray` and write with `set_logic(&value)`. `get_binstr()?` and `LogicArray::to_binstr()` produce MSB-first strings, while indexed access is LSB-first: `value[0]` returns the least significant bit as an `Option<Logic>`. `u64::try_from(&value)` rejects X/Z but keeps the low bits of an oversized array; use the handle's typed getter when you want width checking as well.
+
+The same lookup scheme covers variables that are not logic vectors. `dut.real("gain")?` returns a `RealHandle` with `f64` values; `dut.string("label")?` returns a `StringHandle` with owned Rust strings. Both provide `get()`, scheduled `set()`, and immediate `set_now()`; string writes return a `Result` and reject embedded NUL bytes. `dut.aggregate("record")?` returns an `AggregateHandle` whose `child()` and `children()` reach unpacked struct or union members, including nested aggregates. Read and write each member through its typed handle. A packed aggregate exposed as a logic vector uses `LogicHandle`.
+
+Each of these lookups depends on the simulator exposing that object through VPI. Unpacked aggregates require member-level VPI support; the framework's variable-type regression exercises this on Verilator. Verilator is two-state, so it cannot supply the X/Z behavior demonstrated by the book's Icarus runs.
 
 ## Testing reset
 
@@ -143,6 +157,12 @@ async fn three_count(ctx: RustdvCtx) -> Result<(), TestError> {
      15.00ns INFO     three_count PASSED
 ```
 
+## Reading after the design settles
+
+An edge tells you that a signal changed; it does not promise that all the logic reacting to that edge has finished. `read_write().await` waits for the writable synchronization point, where buffered writes are applied before its waiters resume. `read_only().await` waits until pending writes and combinational logic have settled, which is the point to sample an output that depends on them. The counter tests above sample on the opposite clock edge, so they do not need another synchronization step.
+
+ReadOnly is a sampling region. Driving a signal, or awaiting another ReadOnly or ReadWrite there, is illegal. Wait for a later time step before driving again; `next_time_step().await` waits for the simulator's next time step, while a `Timer` requests a particular delay. Chapter 40 also uses the settled ReadOnly point to explain optional inspection and waveform services.
+
 ## A common coroutine mistake, demoted
 
 The Python chapter closed with a warning: forget the `await` on a trigger and the simulator will create the coroutine, never run it, and let your test sail on without waiting — a bug you diagnose from a testbench that "doesn't seem to be advancing." Let's make the same mistake in Rust:
@@ -178,5 +198,7 @@ The program still compiles and still exhibits the bug — time does not advance,
 ## Summary
 
 This chapter put rustdv-sim in front of a simulator. The testbench compiles to a shared library the simulator loads — no interpreter, no environment, the continuity with cocotb living one layer down in the procedural interfaces both frameworks speak. `ctx.dut()` yields a `HierarchyHandle`; `dut.signal("name")?` looks up signals dynamically and returns `Result`, converting the classic typo from a mid-run `AttributeError` into a time-zero error with the scope and name attached. `LogicHandle` reads with `get_u64()` (a `Result`, because `x` and `z` are real) and writes with `set_u64()` (scheduled, applied at the read-write phase, as cocotb taught us all). Triggers are methods on handles — `rising_edge()`, `falling_edge()`, `value_change()` — awaited in ordinary loops that replace `ClockCycles`. `Clock` ports the clock generator. And the forgotten-`await` mistake, which Python discovered at runtime by symptom, is now a targeted compiler warning.
+
+The value representation is a choice at the read: unsigned integers, arbitrary-width `BigUint`, or four-state `LogicArray`. Real/string variables and aggregate members use their own typed handles. The prelude supplies traversal and edge methods, `RUSTDV_TOP` selects the root, and ReadOnly provides a settled sampling point.
 
 The counter was practice. Next chapter, the TinyALU comes back — same DUT, same `start`/`done` protocol, same timing diagram — and gets its first Rust testbench: version 1.0, a single loop with random operands, a prediction function, and a check. The climb proper begins.

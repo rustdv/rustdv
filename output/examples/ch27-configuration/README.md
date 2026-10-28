@@ -93,3 +93,18 @@ different paths. The parent's wins.
   it lose; precedence is by depth instead, and Chapter 28's dump shows the two
   entries side by side with their numbers (1000 for the test at depth 0, 999
   for the env at depth 1).
+
+## Preserve these teaching points
+
+Manuscript: [chapter-27-configuration](../../../book-pdf/src/chapter-27-configuration.md).
+
+- ConfigDb is a path-addressed runtime database. Preserve its runtime failure
+  taxonomy; do not replace it with compile-time configuration or a type-conflict
+  compile-fail lesson.
+- Explain the SystemVerilog typed-config mismatch and silent failed lookup
+  carefully. Rustdv returns a Result naming the cause.
+- Do not claim the UVM or pyuvm lacks wait_modified, or that nobody uses it. Check
+  upstream implementations before making such claims.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

@@ -9,10 +9,9 @@ additional-css = ["github-markdown.css"]
 
 
 [output.pdf]
-# Skipped rather than fatal where `mdbook-pdf` is absent: it needs a Chromium,
-# which the sandbox VM does not have, so `mdbook build book-pdf` there would
-# fail on the PDF backend after having written the HTML perfectly well. With
-# this, the VM gets its structural check and Ray's Mac still renders the PDF.
+# Allow HTML-only checks where mdbook-pdf/Chrome is unavailable. Release
+# preparation still requires a fresh PDF; see README.md before replacing
+# the distributed Rust4RTLVerif.pdf.
 optional = true
 print-background = true
 display-header-footer = true

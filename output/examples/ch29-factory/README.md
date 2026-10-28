@@ -75,3 +75,18 @@ name (D73), so `create_by_name("TinyComponent")` and
 Not vacuous: delete the `set_inst_override` line and both `tc1` and `tc2`
 build as `TinyComponent` ("I'm so tiny!"); restore it and only `tc1` becomes
 `MediumComponent`. The override drives the outcome.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-29-factory](../../../book-pdf/src/chapter-29-factory.md).
+
+- Preserve the difference between fixed construction (new_comp) and factory
+  construction (create_comp), with universal by-name registration for applicable
+  derived components.
+- A maker closure is how the registry constructs an object; it does not replace
+  runtime type/name/instance overrides. Keep those mechanisms distinct.
+- Follow the source for generic-component registration exceptions rather than
+  inventing a no_factory attribute.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

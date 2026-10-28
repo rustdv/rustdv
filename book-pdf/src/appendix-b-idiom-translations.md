@@ -14,8 +14,8 @@ For readers coming from cocotb and pyuvm (and *Python for RTL Verification*): th
 | `task.kill()` | `handle.cancel()` — the future is dropped; cleanup in `Drop` | 16 |
 | `Combine(...)` / `First(...)` | `join2`/`join!` / `first2`/`first!` | 16 |
 | `try/except QueueFull` | `try_put` → `Result<(), T>` (rejected item handed back) | 16, 31 |
-| decorator registration at import time | link-section registration at compile time | 21 |
-| metaclass class registration | not needed — constructor injection | 21, 29 |
+| decorator registration at import time | `linkme` gathers test registrations into a distributed slice | 21 |
+| metaclass class registration | `#[derive(Component)]` supplies factory registration | 21, 29 |
 | `getattr(obj, name)` dispatch | pass the function/closure itself | 33 |
 | `logging` levels + handlers | `log::` levels, `set_level_for(prefix)`, `log_to_file` | 26 |
 
@@ -26,11 +26,28 @@ For readers coming from cocotb and pyuvm (and *Python for RTL Verification*): th
 | `Timer(2, units="ns")` | `Timer::ns(2).await` | 15 |
 | `RisingEdge(sig)` / `FallingEdge(sig)` | `sig.rising_edge().await` / `sig.falling_edge().await` | 17 |
 | `ClockCycles(clk, n)` | `for _ in 0..n { clk.rising_edge().await; }` | 17 |
-| `dut.sig` attribute magic | `dut.signal("sig")?` → `Result<LogicHandle, _>` | 17 |
+| `dut.sig` attribute magic | `dut.signal("sig")` returns `Result<LogicHandle, HandleError>`; `?` propagates failure | 17 |
 | `sig.value = x` / `int(sig.value)` | `sig.set_u64(x)` / `sig.get_u64()?` | 17 |
+| Python integers for wide buses | `get_u128()?` or arbitrary-width `get_bigint()?`; matching typed setters | 17 |
+| four-state signal values | `get_logic()?` / `set_logic(&value)` with `LogicArray` | 17 |
+| real and string signal values | `dut.real(name)?` / `dut.string(name)?`, then `get()` / `set()` | 17 |
+| hierarchy and aggregate member lookup | `child(name)?` returns `SimHandle`; `as_*()?` checks the kind | 17 |
+| `ReadWrite()` / `ReadOnly()` | `read_write().await` / `read_only().await` | 17 |
+| `NextTimeStep()` | `next_time_step().await` | 17 |
 | `Clock(dut.clk, 10, units="ns").start()` | `Clock::new(&clk, SimDuration::ns(10)).start()` | 17 |
 | `cocotb.queue.Queue(maxsize=1)` | `Queue::new(Some(1))`; `Queue::unbounded()` | 16 |
 | `Event` / `Lock` | `sim::Event` / `sim::Lock` (FIFO-fair, RAII guard) | 16 |
+
+The integer getter selects an unsigned width and rejects X/Z or an oversized
+signal. Use `BigUint` when the width exceeds the primitive types. Traversal and
+edge methods come from `HandleChildren` and `HandleEvent`, both imported by
+the prelude. Real/string/aggregate access depends on simulator VPI support.
+The launcher selects the DUT root with `RUSTDV_TOP`.
+
+For an application-defined inspection service, `service_read_only(closure)`
+runs a synchronous operation while holding settled simulation time. Runtime
+waveform capture uses `rustdv::sim::simulator_trace` and a trace-capable host;
+Chapter 40 describes the Verilator modes and their requirements.
 
 ## pyuvm layer
 

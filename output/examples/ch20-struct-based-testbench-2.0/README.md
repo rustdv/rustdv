@@ -49,3 +49,16 @@ Transcript (RUSTDV_RANDOM_SEED=1):
 ******************************************************************************
 REGRESSION: PASS
 ```
+
+## Preserve these teaching points
+
+Manuscript: [chapter-20-struct-based-testbench-2.0](../../../book-pdf/src/chapter-20-struct-based-testbench-2.0.md).
+
+- Testbench 2.0 is a useful component-free destination, not disposable scaffolding
+  for the UVM chapters. A reader should be able to build a complete testbench
+  using handles, a BFM, ordinary structs/traits, and tasks.
+- The Tester trait and its provided execute method recur in later testbench
+  versions; preserve the reader’s recognition of that structure.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

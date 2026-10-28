@@ -55,3 +55,17 @@ REGRESSION: PASS
 The operands and results are identical to testbench 4.0's — the same
 stimulus, selected by a runtime factory override instead of a compile-time
 type parameter.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-30-variation-point-testbench-5.0](../../../book-pdf/src/chapter-30-variation-point-testbench-5.0.md).
+
+- Runtime variation uses an erased create_comp slot and a factory override.
+  Generic parameters express compile-time variation; an override cannot replace a
+  type parameter.
+- The testers remain the Tester/RandomTester/MaxTester structure the reader met in
+  Chapter 20, now also components. Do not introduce an unrelated free-
+  function/closure helper just to explain factory variation.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

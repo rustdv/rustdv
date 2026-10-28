@@ -86,3 +86,24 @@ operation and takes the longest to come back.
 
 This chapter is what caught D82c: before it, the objection race dropped the whole
 run tree, taking the components with it, and `check` never ran at all.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-33-components-testbench-6.0](../../../book-pdf/src/chapter-33-components-testbench-6.0.md), [chapter-34-connections-testbench-6.0](../../../book-pdf/src/chapter-34-connections-testbench-6.0.md).
+
+- This crate holds both Chapter 33 component definitions and Chapter 34
+  environment/test wiring. Preserve separate Chapter 33 and Chapter 34 source
+  captions and README figure maps.
+- Chapter 33 teaches the single-purpose Tester, Driver, monitors, Scoreboard, and
+  Coverage definitions; Chapter 34 builds and connects them. Do not duplicate the
+  environment in the definitions chapter.
+- The scoreboard has two SubscribePorts and two Subscriber implementations.
+  Preserve each subscriber’s own storage and connect through AnalysisBus rather
+  than restoring an analysis FIFO API.
+- The chapter’s Tester retains its objection for the source-defined flush after
+  the last put (currently twenty clocks); the slow multiply is still in flight. Do
+  not shorten the wait or confuse it with the shipped TinyALU BFM’s wait_idle. A
+  premature end can silently under-check results.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

@@ -63,3 +63,19 @@ REGRESSION: PASS
   holds — that is not a capability, it is what handles look like when two names
   point at one object. Rust has one owner, so there is nothing to restore and
   nothing missing.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-38-fibonacci-testbench-7.2](../../../book-pdf/src/chapter-38-fibonacci-testbench-7.2.md).
+
+- Fibonacci runs on the TinyALU and needs each previous result before issuing the
+  next operation. The driver supplies responses through the sequencer; it does not
+  mutate an item still owned by the sequence.
+- With one outstanding operation, get_response(Some(ticket)) documents the
+  relationship rather than proving tickets necessary; Chapter 37 provides the
+  multiple-outstanding case.
+- Preserve the response-bearing driver, the absence of a separate result monitor,
+  and the explanation of why no additional pipeline flush is needed.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

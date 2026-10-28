@@ -9,7 +9,7 @@ edition = "2024"
 description = "A hardware verification framework in Rust: cocotb-style simulator coroutines plus a UVM-analog testbench library."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rustdv/rustdv"
-readme = "getting-started-with-rustdv.md"
+readme = "README.md"
 keywords = ["verification", "testbench", "rtl", "hardware", "dv"]
 categories = ["development-tools::testing", "simulation"]
 

@@ -86,3 +86,22 @@ REGRESSION: PASS
   distinguish "not ready yet" from "never coming", so it is the sequence
   writer's job to ask only for answers that are owed. There is no runnable
   figure for it, because the only way to show it is a test that never ends.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-37-out-of-order-transaction-testbench-7.1](../../../book-pdf/src/chapter-37-out-of-order-transaction-testbench-7.1.md).
+
+- This chapter is the plain out-of-order request/response example, not Fibonacci
+  or the retired repair-desk story. The empty playground top deliberately avoids a
+  serial DUT that could not demonstrate reordering.
+- Requests carry deterministic latencies (10, 7, 4, 1). Preserve a spread large
+  enough for completion to overtake acceptance; changing the delays can hide the
+  lesson without failing the check.
+- The sequence polls outstanding tickets with try_get_response so completion order
+  is visible. Blocking on responses in send order would conceal reordering.
+- The driver uses nonblocking try_next_item so it can continue aging accepted work
+  when no new request is queued. Item_done releases the request handshake before
+  the response returns; put_response retains its ticket.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

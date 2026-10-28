@@ -59,13 +59,19 @@ Useful Verilator controls are:
 
 | Variable | Values | Purpose |
 |---|---|---|
-| `RUSTDV_VERILATOR_MODE` | `fast`, `debug`, `record`, `inspect`, `framework` | visibility and tracing policy |
+| `RUSTDV_VERILATOR_MODE` | `fast`, `debug`, `record`, `inspect`, `coverage`, `framework` | visibility, tracing, and coverage policy |
 | `RUSTDV_VERILATOR_CONTROL_FILE` | path to `.vlt` | selected DEBUG/RECORD/INSPECT internals |
 | `RUSTDV_FST` | output path | DEBUG waveform location |
+| `RUSTDV_COVERAGE_FILE` | output path | required COVERAGE database destination |
 | `RUSTDV_VERILATOR_OPT` | `default`, `o3` | generated-model optimization |
 | `RUSTDV_VERILATOR_THREADS` | `1`, `2`, `4` | Verilated model threads |
 | `RUSTDV_VERILATOR_NATIVE` | `0`, `1` | opt in to `-march=native` |
 | `RUSTDV_VERILATOR_PROGRESS_SECONDS` | positive seconds | optional scheduler progress |
+
+The coverage profile also accepts a control file for coverage-selection rules.
+DEBUG and RECORD need the lz4 development headers/library for FST output.
+The run scripts export `RUSTDV_TOP` to select the DUT root; export it yourself
+when using a custom launcher, especially if you load additional root modules.
 
 For a long local functional run, enable the same runtime-oriented build knobs
 used during performance work (native code is intentionally opt-in because the
@@ -98,6 +104,53 @@ verilator_coverage --annotate coverage-html /tmp/rustdv-coverage/tinyalu.dat
 
 FAST remains entirely uninstrumented and rejects `RUSTDV_COVERAGE_FILE` so a
 misconfigured task cannot silently claim to have collected coverage.
+
+## Runtime waveform capture and service operations
+
+Build with `RUSTDV_VERILATOR_MODE=record` for runtime FST capture. The model
+includes waveform instrumentation, but no file is opened until the testbench
+starts a capture. Selected VPI visibility and the signals retained for FST
+are separate controls. The RECORD command above runs the ordinary TinyALU
+tests without creating a waveform unless a test calls the trace API.
+
+Use `rustdv::sim::simulator_trace::{start, flush, stop, status}` inside
+`service_read_only()`. The closure runs on the simulator thread after pending
+writes and combinational logic settle. For example, call this helper from
+an async test to capture a window at a caller-supplied path:
+
+```rust
+use rustdv::{Timer, service_read_only};
+use rustdv::sim::simulator_trace as trace;
+use std::path::Path;
+
+pub async fn capture_window(path: &Path) -> Result<(), trace::TraceError> {
+    service_read_only(|| trace::start(path)).await?;
+    Timer::ns(100).await;
+    service_read_only(trace::flush).await?;
+    service_read_only(trace::stop).await?;
+    Ok(())
+}
+```
+
+Create the destination directory first; capture owns and may truncate the
+specified file. `status()` reports capability/state, start/end times, and dump
+count. `host_present()` and `host_format()` can be called before ReadOnly to
+choose a backend. The generic API is simulator-neutral; the shipped host
+implements FST on Verilator. Missing hosts and uninstrumented builds report
+`TraceError::Unavailable`, and incorrect lifecycle/phase use reports
+`TraceError::WrongState`.
+
+`service_read_only()` also supports testbench-defined inspection services.
+Simulation time cannot advance until its synchronous closure returns, so any
+blocking wait must have a wall-clock deadline or cooperative cancellation.
+Simulation-time timeouts cannot release a blocked closure. The application
+supplies its own communication channels and service transport.
+
+For inspection without recording, use `RUSTDV_VERILATOR_MODE=inspect` and a
+`.vlt` file selecting internal signals with `public_flat_rw`, as in
+[`verilator-debug.vlt`](verilator-debug.vlt). Runtime capture is unavailable
+in this mode. The build modes require the scripts and C++ host in this
+repository; adding the Rust crate alone does not install a simulator launcher.
 
 Commercial-simulator invocations are the standard ones but **untested here**
 — public CI cannot hold EDA licenses. If you have a license and the command

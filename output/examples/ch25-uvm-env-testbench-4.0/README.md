@@ -94,3 +94,17 @@ the offending transaction and the run ends `REGRESSION: FAIL`.
 300.00ns ERROR    FAILED: ff Xor ff = 0000 - predicted 00ff
 REGRESSION: FAIL
 ```
+
+## Preserve these teaching points
+
+Manuscript: [chapter-25-uvm-env-testbench-4.0](../../../book-pdf/src/chapter-25-uvm-env-testbench-4.0.md).
+
+- The BFM is shared through ConfigDb, not a singleton. Multiple interfaces can
+  need multiple BFMs; the book does not build that larger example, so do not claim
+  it demonstrates one.
+- Introduce enough configuration to read set/get here; Chapter 27 is the full
+  treatment. State the learning cost of introducing a database, path glob, and
+  Result while explaining the environment.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.
