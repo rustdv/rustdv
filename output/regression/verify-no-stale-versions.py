@@ -6,8 +6,8 @@
 Ray's rule, and the reason this exists: **a version written into a file is a
 staleness source.** It is correct on the day it is typed and wrong on the day
 of the next release, and nothing about the release reminds anyone to go and
-change it. The repository had exactly that — `getting-started-with-rustdv.md`
-is the crates.io front page and told readers for weeks after the 0.1 launch
+change it. The repository had exactly that — its packaged crates.io README
+told readers for weeks after the 0.1 launch
 that crates.io held "the 0.0.1 name reservation" and that `cargo add rustdv`
 would work "once rustdv 0.1 ships".
 
@@ -17,12 +17,12 @@ The mechanisms that do not go stale, and what each replaces:
     `rustdv = "0.1"` in TOML  -> `cargo add rustdv`, which writes it for you
     an MSRV sentence          -> `rust-toolchain.toml`, which rustup obeys
 
-Scope is reader-facing documents only. **STATUS.md and the design log are
-exempt on purpose**: they are dated historical records, and a record of what
-ran on which version in July is supposed to still say July. Generated trees
+Scope is current reader guides. **CHANGELOG.md, STATUS.md, and the design log
+are exempt on purpose**: they are versioned or dated historical records, and
+a record of what ran on which version in July is supposed to still say July.
+Generated trees
 (`rustdv/target/`, `book-pdf/book/`) are build output and are not edited by
-hand. `output/environment-setup.md` is an internal sprint document, not
-reader-facing.
+hand.
 
 This checks prose, not manifests. Real `Cargo.toml` files must pin versions —
 that is what a manifest is for.
@@ -36,7 +36,7 @@ os.chdir(ROOT)
 SCOPE = [
     "README.md",
     "CONTRIBUTING.md",
-    "rustdv/getting-started-with-rustdv.md",
+    "rustdv/README.md",
     "rustdv/tinyalu_tb/README.md",
     "sim/README.md",
     "book-pdf/src/*.md",

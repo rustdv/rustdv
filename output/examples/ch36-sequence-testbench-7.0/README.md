@@ -86,3 +86,21 @@ the env in an inner component so the sequence can be swapped by the factory.
   this item its turn and the driver is blocked waiting for its contents, so
   everything between `start_item` and `finish_item` happens with the driver
   committed. A single `send(cmd)` could not express that window.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-36-sequence-testbench-7.0](../../../book-pdf/src/chapter-36-sequence-testbench-7.0.md).
+
+- The structure stays fixed while a sequence changes the stimulus program. A
+  sequence has no component path/phases; the sequencer is a component whose handle
+  can be filed in ConfigDb.
+- Teach why start_item and finish_item are separate: after a grant, the driver
+  waits while stimulus fields can still be set. A single send call would remove
+  that late-setting window.
+- Finish_item takes the request by value. Passing cmd and cmd.clone() are both
+  legal choices, depending on whether the sequence needs its own copy afterward.
+- Keep the connection back to Chapter 31’s concurrent pipeline, the handshake
+  drawing, and the source-backed transcript.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

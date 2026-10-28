@@ -978,7 +978,7 @@ macro, and it was wrong precisely because nothing could catch it.
 
 Changed: all 21 declaration sites under `rustdv/`, every site in the 20 example
 crates under `output/examples/`, `skills/rustdv-testbench/SKILL.md`,
-`.claude/skills/wire-an-env/SKILL.md`, and the derive itself. The workspace
+the then-current `wire-an-env` helper (subsequently removed), and the derive itself. The workspace
 builds clean (Linux sandbox). The derive still matches on
 `starts_with("component")`, so an old spelling would compile; none survives in
 code and none should return.
@@ -1050,7 +1050,7 @@ one paragraph each in ch33 and ch34. Only listings, code comments and mapping
 tables were touched here; the vocabulary rewrite is the prose pass's, and
 `book-pdf/FABLE.md` already carries the instruction.
 
-*Noticed alongside:* `.claude/skills/wire-an-env/SKILL.md` still taught the
+*Noticed alongside:* the old `wire-an-env` skill still taught the
 **pre-restoration** design wholesale — constructor injection, "no factory, no
 ConfigDB, no string paths", connection as a compile error. Its dead
 `AnalysisPort`/`connect_fifo` lines were a symptom, not the problem. **Ray
@@ -1165,9 +1165,9 @@ The two options had been lettered
 **A**/**B**; the letters are gone. They were referenced exactly three times,
 all inside the two sentences under the table, so they were a lookup key for a
 table nobody needed to look back at — and worse, **`Path A`/`Path B` already
-mean something else in this repository**: the sandbox toolchain choice in
-`output/environment-setup.md` (A = open network access, B = the offline drop),
-cited that way three times in this file and in `toolchain-drop/install.sh`.
+meant something else in this repository**: the then-current sandbox toolchain
+choice (A = open network access, B = the offline drop), cited that way in the
+old setup instructions and offline installer.
 Reversing the letters while a second meaning was live in the same tree was a
 collision waiting to mislead somebody. The neighbouring "use model 1 / model 2"
 numbering stays: it is a real forward reference to two section headings.
@@ -1178,9 +1178,10 @@ is the real answer and the text now points there); `iverilog -V # expect
 version 11 or newer`, replaced by the actual constraint, which is that the run
 scripts pass `-g2012`; "Verilator and commercial simulators are on the roadmap
 (see `/STATUS.md`)", which pointed at a roadmap this file has never contained —
-STATUS.md is a record of what ran, and now says so; and "the four `SKILL.md`
-files under `.claude/skills/`", of which there are six. CLAUDE.md's folder map
-listed five and is corrected in the same pass (it was missing `start-thread`).
+STATUS.md is a record of what ran, and now says so; and an incorrect count of
+the then-current helper `SKILL.md` files: the guide said four when six existed.
+The instruction folder map listed five and was corrected in the same pass
+(it was missing `start-thread`). Those helpers have since been retired.
 
 **`custom/no-stale-versions` is the new check** —
 `output/regression/verify-no-stale-versions.py`, instant and needing no
@@ -1214,12 +1215,10 @@ improvise, and records that read-only git never takes the lock.
 Full regression 240/0 afterward (239 + the new check), **on the Linux sandbox;
 not yet verified on macOS/arm64.**
 
-**Known stale, not touched:** `output/environment-setup.md` still opens by
-saying the Cowork VM "has no Rust toolchain and no Icarus" and that every
-install source is blocked. `toolchain-drop/` solved that, and the file is a
-record of a sprint that is over. It is internal rather than reader-facing, so
-it is out of `no-stale-versions`' scope; it wants either a rewrite or deletion,
-and which one is Ray's call.
+**Historical setup-document debt — closed 2026-10-26.** The old sandbox setup
+guide still described missing tools after an offline installation had solved
+that problem. The user later chose deletion; its obsolete guidance and
+references were removed.
 
 ## The getting-started guide gets one path, and the notes learn to lead with the instruction (2026-08-07)
 
@@ -1239,7 +1238,7 @@ someone not working from a clone. Ray: crates.io readers can get their own
 instructions later.
 
 **The larger job was the writing itself.** Ray, on finding a memory whose header
-said `.claude/` could not be edited while its own appended correction said the
+said the agent configuration directory could not be edited while its own appended correction said the
 opposite: *"You seem to have a writing style that likes to say, 'there is this
 problem, but I cleverly fixed it,' and then later you read 'there is this
 problem' and stop reading. Stop writing stories about your own cleverness and
@@ -1449,3 +1448,330 @@ and API examples for the `SimHandle` rename and aggregate child conversions.
 Added simulator assertions for all five wrong-kind conversion paths, successful
 conversions, and `Other` rejection. Workspace tests, Clippy (existing warnings),
 and book-listing checks pass.
+
+## 2026-10-26 — feature documentation and version-bump audit
+
+Compared the published rustdv 0.2.0 archive (source commit
+`e2b634f0d06a22e3de666a9f1ca8181e91fdbd9d`) with the prepared 0.3.0 source.
+README now summarizes typed/wide integer access, real/string and aggregate
+handles, explicit DUT selection, settled inspection, runtime waveforms, and
+Verilator RTL coverage. Added `rustdv/signal-access.md` with typed access,
+write/conversion semantics, simulator requirements, and breaking-API migration.
+The packaged getting-started guide links to it and distinguishes the Rust APIs
+from the repository's simulator host and launchers.
+
+Expanded `sim/README.md` with the coverage controls, a runtime capture example,
+capability/lifecycle errors, and the wall-clock cancellation requirement for
+settled service closures. Updated lz4 guidance for both waveform build modes.
+Replaced getting-started references to removed templates/helpers with the
+shipped crates, launcher, and verification skills. TOUR reflects these features
+and the workspace location. CLAUDE now requires a published-source feature and
+documentation audit on every framework version bump and carries a session
+close-out checklist in place of the removed helper.
+
+Validation on macOS/arm64: all three new Rust snippets compile against the
+workspace with its locked dependency versions; all seven selected signal,
+variable-type, settled-service, runtime-trace, inspection, and coverage regression
+entries pass. Every manuscript/README transcript matches a real Icarus run,
+book listings report zero drift, local Markdown links resolve, and the
+no-stale-versions check passes. Added the signal-access guide to that check's
+scope and confirmed an injected hardcoded version fails before restoring the
+guide. `cargo package --list` confirms the new guide is included in the facade
+crate. No Rust implementation or manuscript listings changed.
+
+## 2026-10-26 — book feature audit and release instructions
+
+Updated the Toolkit and Appendices B/C/D for typed and wide integer access,
+real/string/aggregate handles, handle traits and conversions, scheduler-region
+triggers, settled service operations, and optional runtime tracing. Appendix D
+now matches all 79 actual prelude names; simulator-layer `SimHandle` and
+`HandleBase` are documented at their correct explicit-import paths, while the
+low-level GPI `AnyHandle` remains distinguished. Corrected the Python table's
+component-registration description and the distinction between a lookup's
+`Result` and its unwrapped handle.
+
+Chapter 17 explains root selection, unsigned width and X/Z errors, four-state
+array ordering, richer variable types, and settled sampling. Chapter 40 adds
+optional Verilator inspection, capture lifecycle and service constraints, and
+the difference between transaction-level functional coverage and RTL
+line/expression coverage. The teaching sequence, code/output blocks, and figure
+captions are unchanged. Recorded the audit in chapter-notes.md and corrected
+its obsolete Appendix D and software-clock guidance for the affected chapters.
+
+CLAUDE.md's release checklist now explicitly requires the book audit on every
+release, including actual prelude/facade exports, import paths, affected prose,
+and chapter notes; passing existing example checks does not prove complete
+feature documentation. TOUR.md points to that requirement.
+
+Validation: all 108 book-sync checks pass, the book-listing check reports zero
+drift, the no-stale-versions check passes, and local links resolve. Verified
+byte-for-byte preservation of every fenced code/output block and figure
+caption in all six edited book pages. Built the HTML book successfully with
+the official macOS mdBook binary into per-user temporary storage. PDF output
+was skipped because the optional mdbook-pdf renderer is not installed.
+
+## 2026-10-26 — versioned changelog
+
+Added CHANGELOG.md with prepared 0.3.0 features, fixes, tooling changes, and
+breaking API migrations. Confirmed from crates.io that 0.3.0 is not yet
+published and kept its heading unreleased. Reconstructed concise 0.2.0 and
+0.1.0 notes from source history, and included the intervening 0.1.1 README
+packaging patch. Historical publication dates and source commits were read
+from crates.io and each archive's `.cargo_vcs_info.json`; the first published
+release's source commit is newer than its local tag, so links use the actual
+published commit where necessary.
+
+Linked the changelog from README and TOUR. CLAUDE's release checklist now
+requires updating release notes, preserving version history, and confirming
+publication before assigning a release date and replacing the prospective
+comparison link. Documented versioned history as intentionally outside the
+guide-only no-stale-versions rule. Checked historical source references,
+local guide links, entry headings/dates, the existing version checker, and
+diff whitespace. No implementation or book listings changed in this step.
+
+## 2026-10-26 — paired release handoff and prepared GitHub notes
+
+Added the crates.io/GitHub release sequence to CLAUDE.md and a pointer in TOUR:
+validate and publish the intended clean source, verify all eight crate versions,
+tag that exact source commit, and use `gh release create --verify-tag` with
+prepared notes. Later changelog bookkeeping does not move the source tag.
+Existing user authorization still controls commit, push, and publication.
+
+Generated the user-requested `/tmp/release-notes.md` from the 0.3.0 changelog
+body, excluding the header, introduction, and older releases. Documentation
+links and the comparison URL in the copied notes use the intended release
+tag. The instructions require refreshing this file and handing the user a
+concrete release command, with publication/tag prerequisites stated.
+Validated the extracted section, normalized links, file contents, and diff
+whitespace. No tag, crate publication, or GitHub release was created.
+
+## 2026-10-26 — consolidated book agent instructions
+
+Consolidated FABLE.md, fable-prompt.md, fable-restart.md, and HANDOFF.md from
+973 lines into the 204-line book-pdf/CLAUDE.md. Preserved the audience and
+tone study, source/verification rules, chapter exemplars and workflow,
+durable terminology/teaching decisions, figure conventions, and release audit.
+Removed completed work orders, model-specific restart routing, duplicated
+progress, and contradictory historical reminders. The existing renumbering
+spec remains explicitly historical; chapter notes and STATUS retain ongoing
+chapter work and validation rather than creating another handoff register.
+
+Added book-pdf/AGENTS.md pointing to the consolidated guide and parent rules.
+Removed the four superseded files and updated active references in root
+instructions, TOUR, the book README, chapter notes, and renumbering spec.
+Checked delegation and local links, found no active references to deleted
+guides, passed listing/version/whitespace checks, and rebuilt HTML successfully.
+The optional PDF renderer remains unavailable. No manuscript content changed
+in this consolidation; earlier uncommitted edits are preserved.
+
+## 2026-10-26 — chapter-local instructions and caption ledger
+
+Folded the remaining chapter-notes and renumbering-spec guidance into the new
+instruction structure. Shared book rules and a compact, explicitly historical
+caption-reconciliation table live in book-pdf/CLAUDE.md. Chapter-specific
+teaching constraints now live in 25 CLAUDE.md files beside the relevant example
+crates and the shipped TinyALU testbench, indexed by the book guide. The
+Chapter 33 folder has a pointer to the shared Chapter 34 source/instructions;
+the Interlude and Chapter 40 share the TinyALU guide. Chapters with no distinct
+local constraints continue to use the shared rules.
+
+Retained the non-Copy try_put handback, concurrent pipeline, subscriber-owned
+storage and slow inbox, FIFO taps, transaction equality/printing, sequencer
+handshake/ownership, and deterministic out-of-order teaching requirements.
+Discarded obsolete rewrite commands, stale listing counts, and completed
+transcript reminders. Removed chapter-notes.md and renumbering-spec.md and
+updated active parent/orientation references; root instructions now direct
+example edits to the relevant local guide.
+
+Validated all local links across 30 instruction/orientation files, confirmed
+no active references to the two retired files, passed listing/version/diff
+checks, and rebuilt HTML. Manuscript code/output blocks are unchanged. The
+optional PDF renderer is still unavailable. All earlier uncommitted work is
+preserved; no commit or push was made.
+
+## 2026-10-26 — removed agent pointer files
+
+Inspected both repository AGENTS.md files (root and book-pdf). Both only
+directed agents to their CLAUDE.md instructions; neither carried additional
+rules. Removed both at the user's request and updated active references in
+root instructions, TOUR, and the book README. A full repository walk excluding
+Git internals confirms no AGENTS.md files remain. Changes are uncommitted.
+
+## 2026-10-26 — renamed instruction files to AGENTS.md
+
+At the user's subsequent request, renamed all 28 repository CLAUDE.md files
+to AGENTS.md, including the full root rules, shared book guide, chapter-local
+guides, and TinyALU instructions. Updated active links and filename references
+in the guides, TOUR, and book README. Historical records retain their original
+filenames as history. Verified no CLAUDE.md files remain, all instruction links
+resolve, and version/whitespace checks pass. No commit or push was made.
+
+## 2026-10-26 — consolidated crate README
+
+Merged getting-started-with-rustdv.md and signal-access.md into rustdv/README.md
+and removed the old guides. The combined guide covers installation, the known
+example, external project/library setup, typed values and migration, simulator
+modes, and staged verification with optional AI assistance. Preserved both
+signal-access Rust examples, removed overlapping introductions, added section
+navigation, and clarified external toolchain/linker configuration and native
+library names. The repository overview remains separate.
+
+Changed the facade manifest's readme field to README.md and updated root
+README, TOUR, release instructions, changelog links, and the version check's
+scope/commentary. Refreshed /tmp/release-notes.md with the new migration link.
+Historical STATUS entries keep the old filenames as history.
+
+Validation: both Rust examples compile offline against workspace dependencies;
+the packaged file list includes README.md and neither retired guide. Local
+file/section links resolve, book listings report zero drift, and the version
+guard passes. Injecting a version in the new README makes that guard fail,
+then restoring the guide returns it to passing. Task-file whitespace checks
+pass. No Rust implementation changed, and unrelated pending edits are preserved.
+
+## 2026-10-26 — retired skill-path references
+
+Removed the old agent-configuration-directory paths from TOUR and historical
+STATUS/design notes. Current verification skills are in skills/. Historical
+environment-wiring/helper references are described as retired rather than
+redirected to nonexistent replacements. Confirmed the three current SKILL.md
+files exist and no obsolete directory-path references remain in source docs.
+Unrelated external documentation URLs and pending user edits are preserved.
+
+## 2026-10-26 — chapter teaching notes moved into READMEs
+
+Moved all 24 “Preserve these teaching points” sections under output/examples
+into the neighboring READMEs, including their manuscript links. Removed the
+24 AGENTS.md files whose remaining content was shared boilerplate. Kept
+Chapter 33's AGENTS.md because it has separate instructions about the shared
+Chapter 34 source. Updated its link, the book's chapter index, repository
+instructions, TOUR, and the example overview to find the relocated notes.
+
+Validation: all original chapter README content, code/output fences, teaching
+bullets, and manuscript links are preserved; 63 local links resolve. Book-sync
+passes all 108 checks, book listings report zero drift, and the stale-version
+guard passes. No source code changed, and no commit or push was made.
+
+## 2026-10-27 — script to extract release notes
+
+Added scripts/release-notes.py, a Python standard-library command taking a
+version with or without a leading v. It extracts that exact changelog entry
+into /tmp/release-notes.md by default, with an optional --output destination.
+It resolves relative documentation links at the release tag and updates the
+prospective GitHub comparison. Missing, duplicate, empty, or invalid versions
+fail before writing. Updated AGENTS.md's release procedure and TOUR to use
+the script, and regenerated the current release notes.
+
+Validation: exercised all four changelog releases, the leading-v form, execution
+from another directory, exact heading boundaries, fenced headings, final-entry
+extraction, link normalization, and error cases preserving existing output.
+Generated notes match the previously prepared release notes. The stale-version
+guard and task-file whitespace checks pass. No commit or push was made.
+
+## 2026-10-27 — release notes use stdout
+
+Changed scripts/release-notes.py to print only the extracted notes to stdout;
+removed the output-file option and default temporary-file write. Errors still
+go to stderr and exit nonzero. Updated AGENTS.md and TOUR to capture the script
+output directly for gh release create --notes, with extraction success gating
+release creation. This replaces the earlier temporary-file workflow.
+
+Validation: all four releases and the leading-v form produce only notes on
+stdout; invalid/missing versions produce only stderr and fail. Confirmed failed
+extraction stops the following shell command and no temporary file is written.
+The stale-version guard and whitespace checks pass. No commit or push was made.
+
+## 2026-10-27 — repository tour consolidated
+
+Removed TOUR.md after consolidating its useful material. AGENTS.md now contains
+environment/build safeguards, targeted test commands, the intentional Chapter 21
+simulator exclusion, and the rule to verify documentation claims against code.
+README.md keeps reader orientation, adds the Fibonacci entry point and testing
+overview, and indexes the existing guides. Its existing Interlude, compile-error
+examples, simulator features, and TinyALU transcript already cover the remaining
+reader-facing material. Updated the design log's current-status pointer. Older
+plain-text mentions of the retired tour remain historical records; current
+instructions are in AGENTS.md, reader orientation in README.md, and dated
+implementation/validation history here.
+
+The retired tour summarized completed restoration work: component phases,
+runtime configuration/factory/TLM, the shipped TinyALU regression, and the
+Subscriber/subscribe vocabulary and Chapter 32 FIFO-tap demonstration. It also
+recorded the August 5 manuscript publication sweep. Those completions belong to
+the existing dated records, not another live work queue. This consolidation does
+not claim a new simulator run or publication.
+
+Retired environment assumptions included a networkless Cowork VM, fixed
+toolchain-drop paths, fixed process/disk limits, and a separate deletion
+permission tool. Preserve the underlying lessons in AGENTS.md: use per-user
+temporary builds, keep foreign binaries out of synced checkouts, diagnose Git
+lock permissions, check lz4/PDF prerequisites, and report actual platform
+coverage. Use current tools and permissions instead of replaying old VM setup.
+
+Validation: all 32 local links in README.md and AGENTS.md resolve; no active
+references or links to the deleted tour remain. Existing README code/output
+blocks are unchanged. Book listings report zero drift, all 108 book-sync checks
+pass, and the stale-version and task-file whitespace checks pass. No Rust or
+simulator code changed; no commit or push was made.
+
+## 2026-10-27 — release-note type annotations
+
+Annotated the release-note entry lists, optional parser state, and regex
+replacement callback in scripts/release-notes.py. Pyright strict mode now
+reports zero errors or warnings with Python 3.9 compatibility. Compared stdout,
+stderr, and exit status before/after for all four releases, the leading-v form,
+and invalid/missing versions; behavior is unchanged. Whitespace checks pass.
+No commit or push was made.
+
+## 2026-10-27 — finalize the changelog in the release commit
+
+At the user's request, dated the 0.3.0 changelog entry 2026-10-27 and changed
+its comparison endpoint from HEAD to v0.3.0 before the release commit. Updated
+the changelog introduction and AGENTS.md so release preparation finalizes the
+intended date and tag comparison together with the published source, removing
+the routine post-publication bookkeeping commit. Publication and tag/source
+verification remain required; dating the entry does not perform publication.
+
+Validation: extracted 0.3.0 release notes are byte-for-byte unchanged after the
+date/comparison update. The stale-version guard and whitespace checks pass.
+No commit, push, tag creation, or publication was performed.
+
+## 2026-10-27 — rebuilt the distributed book PDF
+
+Rebuilt the current manuscript with mdBook 0.5.4, mdbook-pdf 0.1.13, and local
+Chrome on macOS, then replaced Rust4RTLVerif.pdf with the verified output.
+The distributed book now has 472 pages (previously 468) and includes the
+updated Toolkit, Chapters 17/40, and Appendices B–D. Build products, backend
+installation, and review images stayed under per-user temporary storage.
+
+Release preparation in AGENTS.md now requires a fresh PDF build, visual review,
+and replacement of the root PDF before the release commit. The book's guide
+and instructions explain the same requirement and reject an HTML-only build
+as release completion. Corrected the documented backend output to
+book/pdf/output.pdf and replaced obsolete offline-VM assumptions with current
+prerequisites and a fresh-directory build/check/copy procedure.
+
+Validation: checked all 472 pages contain extracted text; confirmed the updated
+signal, scheduler, trace, and RTL-coverage APIs appear. Rendered and visually
+reviewed 26 pages covering the changed sections and page-number footers, with
+full-size checks of dense tables and new simulator guidance. No characters
+extend outside the reviewed page bounds. The copied PDF's SHA-256 matches the
+fresh build. All 108 book-sync checks, zero-drift book listings, the stale-version
+guard, and task-file whitespace checks pass. No commit or push was made.
+
+## 2026-10-27 — release PR preparation
+
+Prepared the complete pending documentation, release tooling, instruction
+consolidation, contribution guidance, and rebuilt PDF changes for the requested
+release PR. The framework versions were already bumped to 0.3.0 in the earlier
+merged release-version PR. Aligned README's contribution policy with the
+updated CONTRIBUTING.md and added the separate website update/docs.rs checks
+to the release procedure. Removed trailing whitespace in the edited guides.
+
+Validation on macOS: formatting and strict workspace/all-target Clippy pass;
+the full regression reports 259 passed, 0 failed, including Icarus and Verilator
+simulator paths. Book listings report zero drift, the stale-version guard
+passes, and strict Pyright reports zero diagnostics for the release-notes
+script. Extraction works for all four changelog versions and rejects empty or
+duplicate entries. The facade package list includes the consolidated README;
+the distributed PDF is the reviewed 472-page build. No crates, release tags,
+GitHub releases, or website deployments were published during preparation.

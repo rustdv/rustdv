@@ -118,3 +118,23 @@ sweep reports
 these TLM ports were declared but never connected:
   UnconnectedTest.producer.put_port (put)
 ```
+
+## Preserve these teaching points
+
+Manuscript: [chapter-31-component-communications](../../../book-pdf/src/chapter-31-component-communications.md).
+
+- Ports, exports, and TlmFifo decouple components through a shared FIFO; channels
+  do not replace TLM. Missing connections are diagnosed for the tree during
+  elaboration, not through a direction-mismatch compile-fail example.
+- Keep the non-Copy Packet try_put example. Err(packet) returns ownership of the
+  refused item; a Copy integer would conceal the move/retry rule. Try_get returns
+  Option for the corresponding empty case.
+- Preserve the self-checking y = 2x² pipeline (SquareIt, TimesTwo, MathTest). It
+  demonstrates parent and children running concurrently, a request/response loop,
+  the same connection form for self and children, and infinite workers stopped by
+  drained objections.
+- Teach the pipeline as the DUT-free rehearsal for Chapter 36. Leave FIFO tap
+  details to Chapter 32, with only the put_ap/get_ap forward reference here.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

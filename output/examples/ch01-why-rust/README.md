@@ -16,3 +16,20 @@ Source: `book-pdf/src/chapter-01-*.md`
 % cargo new hello
     Creating binary (application) `hello` package
 ```
+
+## Preserve these teaching points
+
+Manuscript: [chapter-01-Why-Rust](../../../book-pdf/src/chapter-01-Why-Rust.md).
+
+- State the book’s frame here once: types for data and ownership; runtime
+  indirection for topology and binding. ConfigDb, factory, and TLM failures are
+  runtime concerns, not compile-time guarantees.
+- The Rust motivations are scale across a team/codebase and compiled execution
+  without a garbage collector, including the emulation argument. Explain costs
+  without selling the compiler or disparaging either source language.
+- Preserve the two ownership/compiler stories that later chapters explain: the
+  static lifetime required by spawned work and the async-trait/object-safety
+  constraint. Keep the plan aligned with the actual Summary and Interlude.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

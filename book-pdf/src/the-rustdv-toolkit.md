@@ -6,7 +6,7 @@ Every listing from Chapter 15 on begins with the same line:
 use rustdv::prelude::*;
 ```
 
-It is the analog of `import uvm_pkg::*` in SystemVerilog and `from pyuvm import *` in Python, and it brings roughly fifty names into scope. Part I introduced every Rust concept before using it, and this page keeps that promise for the framework: it is the declaration site for the names the glob import hides. Skim it now to learn the shape of what rustdv provides, then return to it whenever a listing uses a name you have not met. Each entry names the chapter that teaches it properly, and Appendix D holds the complete alphabetical reference.
+It is the analog of `import uvm_pkg::*` in SystemVerilog and `from pyuvm import *` in Python, and it brings the testbench API into scope. Part I introduced every Rust concept before using it, and this page keeps that promise for the framework: it is the declaration site for the names the glob import hides. Skim it now to learn the shape of what rustdv provides, then return to it whenever a listing uses a name you have not met. Each entry names the chapter that teaches it properly, and Appendix D holds the complete alphabetical reference.
 
 ## One crate, four layers
 
@@ -53,12 +53,18 @@ From rustdv-sim. These are the names of a coroutine testbench, UVM or not.
 | `Clock` | a software clock driver — taught once and then retired, because rustdv BFMs wait on edges rather than make them | 17 |
 | `LogicHandle` | a named signal in the design: read it, drive it; asking for a signal that does not exist is an `Err`, not a surprise | 17 |
 | `Logic`, `LogicArray` | four-state values, kept out of your arithmetic until you decide what x means | 17 |
+| `BigUint` | arbitrary-width unsigned values for buses beyond primitive integer widths | 17 |
+| `RealHandle`, `StringHandle` | real and string variables, with scheduled and immediate writes | 17 |
+| `AggregateHandle` | named members of unpacked structs and unions exposed through VPI | 17 |
+| `HandleChildren`, `HandleEvent` | traits supplying hierarchy/member lookup and logic-edge triggers | 17 |
+| `read_only`, `read_write`, `next_time_step` | await settled sampling, writable synchronization, or the next simulator time step | 17 |
+| `service_read_only` | run a synchronous service closure at settled ReadOnly while simulation time is held | 40 |
 | `HandleError` | what signal access returns instead of a crash | 17, 19 |
 | `SimDuration` | an amount of simulated time | 17 |
 | `Rng` | the deterministic random source behind `ctx.rng()` — one seed, one reproducible test | 20 |
 | `log` | the logging facade the framework routes through `ctx`; policy is set per hierarchy | 15, 26 |
 
-A handful of scheduler corners — `with_timeout`, `sim_time_ns`, `next_time_step`, `read_only`, `read_write`, `Either`, `HierarchyHandle` — are in the prelude for completeness and cataloged in Appendix D.
+A handful of other names — `with_timeout`, `sim_time_ns`, `Either`, `HierarchyHandle` — are in the prelude for completeness and cataloged in Appendix D. General child lookups return `rustdv::SimHandle`, which is outside the prelude. Name metadata comes from `rustdv::sim::handle::HandleBase`. Optional waveform control lives in `rustdv::sim::simulator_trace`; Chapter 40 explains its use with the Verilator host.
 
 ## The structure kit
 

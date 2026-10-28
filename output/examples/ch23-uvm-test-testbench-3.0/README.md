@@ -62,3 +62,21 @@ REGRESSION: PASS
 
 `[HelloWorldTest]` is the component path (D49): rustdv names the root after
 the test you registered, where UVM always says `uvm_test_top`.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-23-uvm-test-testbench-3.0](../../../book-pdf/src/chapter-23-uvm-test-testbench-3.0.md).
+
+- Testbench 3.0 has the test as its only component; the BFM and scoreboard are
+  ordinary locals. The component tree belongs to Chapter 24.
+- Both test forms are first-class: an async function and a component/type
+  annotated with #[rustdv::test]. Neither is temporary training code.
+- Re-show evolving Tester/RandomTester/MaxTester/Scoreboard definitions rather
+  than importing an old chapter. Explain that re-showing makes the changes
+  visible.
+- Test registrations retain their Rust type names, and log roots are named after
+  the test rather than a fixed uvm_test_top. This chapter is the Part II prose
+  exemplar.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

@@ -1,5 +1,8 @@
-Thank you for your interest in contributing to rustdv.
+Thank you for your interest in contributing to rustdv. Rustdv is currently
+accepting pull requests!
 
-This is the release/evaluation phase, so rather than capture issues or pull requests I've opened the discussion section to get a sense of what people think of the library.
+This is the release/evaluation phase, so please bear with us on reviewing PRs.
 
-I'll open pull requests in the future.
+Much of this repository was written by AI, so AI contributions are accepted, but
+please be mindful of the reviewers time. Read the code first yourself (you being
+a human) before you submit it for review, which would be by us, other humans.

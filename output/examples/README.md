@@ -20,6 +20,16 @@ Icarus remains the source of the book's four-state transcripts. Set
 `SIM=verilator` when using `sim-common/run_sim.sh` to run the same Rust
 testbench in Verilator's faster two-state mode.
 
+## Editing examples and manuscript passages
+
+Follow the [repository instructions](../../AGENTS.md) for code, verification,
+and releases, and the shared [book instructions](../../book-pdf/AGENTS.md) for
+manuscript edits. Chapter READMEs include “Preserve these teaching points”
+sections with chapter-specific guidance; the book instructions index them.
+Read those notes and any local `AGENTS.md` before editing an example or its
+book passage. Keep source, figure maps, and transcripts aligned. Completed
+historical rewrites are not new tasks.
+
 ## Naming convention
 
 ```

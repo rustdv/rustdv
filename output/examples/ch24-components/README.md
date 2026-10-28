@@ -83,3 +83,21 @@ nothing hand-typed it.
 completion before the next — right while run bodies raise, act, and drop
 their own objection, as here. Concurrent run phases (spawned `'static`
 tasks) are a later increment; see the design-decisions log.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-24-components](../../../book-pdf/src/chapter-24-components.md).
+
+- Build and connect are real phases: the gap between a component existing and its
+  children being built permits configuration and factory overrides. Build is top-
+  down; connect is bottom-up.
+- Use the current phase traversal implementation to explain differences from
+  SystemVerilog for the other phases. Do not claim phase legality is enforced by
+  context types; RustdvCtx is shared and illegal operations fail at runtime.
+- Component::run is an async trait method; the framework uses a dyn-safe mirror
+  for erased traversal. Do not imply async traits are freely object-safe.
+- Bare #[component] marks a field as a child. Preserve the intentional figure-
+  number gaps filled by transcripts and the book-only tree drawing.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

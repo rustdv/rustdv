@@ -87,3 +87,15 @@ yet the file has no `This is debug` line.
 overriding `end_of_elaboration_phase`. Here the policy is a type parameter
 and the four tests are type aliases over one base (D28) — the same move as
 the testers in Chapter 25.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-26-logging](../../../book-pdf/src/chapter-26-logging.md).
+
+- Logging flows through the component context and hierarchy; components do not
+  store their own path merely for reporting.
+- Keep log-level and log-file examples synchronized with source and output,
+  including the runner resetting logging state between tests.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

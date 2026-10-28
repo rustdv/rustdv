@@ -26,7 +26,8 @@ figure in the book as runnable code.
 |---|---|
 | Crate | [`rustdv` on crates.io](https://crates.io/crates/rustdv) (the badge above is the current version) |
 | Site | [rustdv.org](https://rustdv.org) |
-| Getting started | [`rustdv/getting-started-with-rustdv.md`](rustdv/getting-started-with-rustdv.md) |
+| Getting started | [Crate guide](rustdv/README.md) |
+| Release notes | [Changelog](CHANGELOG.md) |
 | Discussion | [GitHub Discussions](https://github.com/rustdv/rustdv/discussions) |
 
 ---
@@ -113,7 +114,7 @@ undefined `vpi_*` symbols the cdylib is allowed to have, so add the stub crate
 that satisfies them — `cargo add --dev rustdv-vpi-stubs` — and `use
 rustdv_vpi_stubs as _;` under `#[cfg(test)]`.
 
-[`rustdv/getting-started-with-rustdv.md`](rustdv/getting-started-with-rustdv.md)
+[Crate guide](rustdv/README.md)
 walks the whole path from an empty directory to a passing regression.
 
 ## Running the TinyALU
@@ -169,6 +170,23 @@ The rest of this section walks the TinyALU testbench from the top down. Every
 listing below is real code from
 [`rustdv/tinyalu_tb/src/`](rustdv/tinyalu_tb/src/), with the teaching comments
 stripped; the files there carry the full commentary.
+
+### Simulator and signal features
+
+| Feature | What you can do |
+|---|---|
+| Typed logic values | Read and write `bool`, `u8`, `u16`, `u32`, `u64`, `u128`, and arbitrary-width `BigUint` values; preserve X/Z with `LogicArray`. |
+| SystemVerilog variables | Access real and string variables and traverse unpacked struct/union members through typed handles, where the simulator exposes them through VPI. |
+| Top-module selection | Set `RUSTDV_TOP` to select the DUT when more than one root module is loaded. |
+| Runtime waveform capture | Start, flush, and stop a Verilator FST capture from Rust using RECORD mode and `rustdv::sim::simulator_trace`. |
+| Settled inspection | Use `service_read_only()` for a service operation while simulation time is held at settled ReadOnly. Verilator INSPECT mode exposes selected internals without waveform instrumentation. |
+| RTL coverage | Collect Verilator line and expression coverage with COVERAGE mode, independently of the testbench's functional coverage collectors. |
+
+The [crate guide](rustdv/README.md#reading-and-writing-simulator-values) covers reads, writes,
+conversions, and migration from the earlier handle API. The
+[simulator guide](sim/README.md) explains build modes, waveform capture, and
+coverage commands. The signal and trace APIs ship in the crates; the Verilator
+build modes also require this repository's run scripts and simulator host.
 
 ### Importing rustdv
 
@@ -781,12 +799,20 @@ asserted here.
   a "Try it" Rust Playground link per figure, so you can run those in a browser
   with nothing installed — including the figures that fail to compile on
   purpose, where the error is the lesson.
+* Stimulus that uses the DUT's answers: [Chapter 38's Fibonacci
+  sequence](book-pdf/src/chapter-38-fibonacci-testbench-7.2.md), with
+  [runnable source and output](output/examples/ch38-fibonacci-testbench-7.2/README.md).
+
+The compile-error examples teach Rust's data and ownership rules. Configuration,
+factory overrides, and TLM connections resolve at runtime; their failure cases
+are taught alongside those mechanisms.
 
 ## What's in this repository
 
 | Path | Contents |
 |---|---|
-| [`rustdv/`](rustdv/) | The framework workspace: `rustdv-gpi-sys` → `rustdv-gpi` → `rustdv-sim` → `rustdv-methodology` → `rustdv`, plus `tinyalu_tb` |
+| [`rustdv/`](rustdv/) | Framework crates and `tinyalu_tb`; the Cargo workspace manifest is at the repository root |
+| [`rustdv/README.md`](rustdv/README.md) | Getting started, typed signal access, and API migration |
 | [`rustdv/tinyalu_tb/`](rustdv/tinyalu_tb/) | The shipped TinyALU testbench walked above |
 | [`book-pdf/src/`](book-pdf/src/) | The manuscript (mdBook markdown) |
 | [`output/examples/`](output/examples/README.md) | Every book figure as runnable code |
@@ -795,7 +821,9 @@ asserted here.
 | [`skills/`](skills/) | AI verification skills: spec + RTL → testbench → verified coverage report |
 | [`docker/`](docker/) | Reproducible environment: Rust + Icarus + Verilator |
 | [`STATUS.md`](STATUS.md) | Implementation history and the deviations log |
-| [`TOUR.md`](TOUR.md) | The ten-minute walk-around, for humans and AI alike |
+| [`CHANGELOG.md`](CHANGELOG.md) | Versioned release notes |
+| [`AGENTS.md`](AGENTS.md) | Repository instructions, build safeguards, testing, and release procedure |
+| [`book-pdf/AGENTS.md`](book-pdf/AGENTS.md) | Shared editorial rules and links to chapter teaching notes |
 
 ## Simulators
 
@@ -818,6 +846,13 @@ python3 output/regression/regress.py              # everything
 python3 output/regression/regress.py --suite unit # no simulator needed, seconds
 python3 output/regression/regress.py --list       # every test id
 ```
+
+Framework checks include unit tests without a simulator, targeted simulator
+tests, and compile-fail cases that assert the expected Rust error code. The
+TinyALU regression checks scoreboard totals and operation coverage. A mutation
+test deliberately changes XOR to OR, requires the scoreboard to catch the
+fault, then checks the original RTL again. See the
+[testing manual](output/regression/TESTING.md) for setup and individual runs.
 
 Two of those checks exist to catch documentation drift, which is the failure
 this project pays for most:
@@ -844,9 +879,10 @@ That mutation is itself a test in the suite.
 ## Contributing
 
 rustdv is in its release and evaluation phase.
-[Discussions](https://github.com/rustdv/rustdv/discussions) are open and issues
-and pull requests are not — the most useful thing you can do right now is say
-what you think of the library. See [CONTRIBUTING.md](CONTRIBUTING.md).
+[Discussions](https://github.com/rustdv/rustdv/discussions), issues, and pull
+requests are welcome. Review the code yourself before submitting a contribution,
+including AI-assisted changes, and allow time for review. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits
 

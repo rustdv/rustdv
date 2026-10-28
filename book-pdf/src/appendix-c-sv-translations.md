@@ -8,6 +8,11 @@ For readers coming from SystemVerilog UVM (and *The UVM Primer*): where each pie
 |---|---|---|
 | `byte`, `shortint`, `int` | `u8`/`i8`, `u16`/`i16`, `u32`/`i32` — no silent truncation | 3 |
 | `logic` four-state values | `Logic` enum / `LogicArray` — no x in arithmetic | 7, 17 |
+| Unsigned logic vectors read as integers | `get_u8()` through `get_u128()`, or `get_bigint()` for arbitrary widths; reads return `Result` | 17 |
+| `real` / `string` variables | `RealHandle` (`f64`) / `StringHandle` (owned strings), with scheduled and immediate writes | 17 |
+| Unpacked struct/union members | `AggregateHandle::child()` / `children()` through simulator VPI | 17 |
+| A settled sampling point | `read_only().await`; writes are illegal until a later writable time step | 17 |
+| A writable synchronization point | `read_write().await`; buffered writes apply before its waiters resume | 17 |
 | `typedef enum` (an int in disguise) | `enum` — a real type; exhaustively matched | 7 |
 | `case` + `default` (+ `unique` warnings) | `match` — missing cases are compile errors | 4 |
 | `class ... extends`, `virtual`, `super.new()` | traits, default methods, composition + delegation | 10 |
@@ -27,6 +32,19 @@ For readers coming from SystemVerilog UVM (and *The UVM Primer*): where each pie
 | `` `define ``-style codegen (`` `uvm_*_utils ``) | attribute + derive macros — syntax trees, not text | 21 |
 | package + `.f` file + vendor tarball | crate + `Cargo.toml` + crates.io | 14 |
 | *(no equivalent)* | `cargo test` — unit tests with no simulator | 14 |
+
+These signal accesses use the simulator's VPI objects, rather than a compiled
+virtual interface. `RUSTDV_TOP` names the root and `HandleChildren` supplies
+name lookup. `SimHandle::as_*()` reports wrong-kind objects as `HandleError`.
+Integer access is unsigned and rejects X/Z or an oversized signal; use
+`LogicArray` to preserve four-state values. Packed aggregates exposed as logic
+use `LogicHandle`; unpacked member traversal requires simulator support.
+
+Functional coverage in the book's collector is independent of Verilator RTL
+line/expression coverage. Chapter 40 describes COVERAGE mode, optional waveform
+capture, and `service_read_only()` for application-defined inspection at a
+settled point. These services depend on the repository's simulator host/build
+configuration as well as the Rust API.
 
 ## Methodology level
 

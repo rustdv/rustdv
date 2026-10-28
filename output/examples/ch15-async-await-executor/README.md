@@ -39,3 +39,16 @@ Full sim transcript (RUSTDV_RANDOM_SEED=1):
 ******************************************************************************
 REGRESSION: PASS
 ```
+
+## Preserve these teaching points
+
+Manuscript: [chapter-15-async-await-executor](../../../book-pdf/src/chapter-15-async-await-executor.md).
+
+- The unnumbered Toolkit precedes this chapter so the first prelude import and
+  test attribute have already been introduced. Keep new API names declared there
+  or here before using them.
+- Teach async/future polling and the executor before simulator mechanisms.
+  RustdvCtx is the one context; do not introduce phase-specific context types.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.

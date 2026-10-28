@@ -83,3 +83,24 @@ One false friend: Rust's `Copy` trait is unrelated to the UVM's `copy()`.
 usable — so a transaction owning a `String` or a `Vec` cannot be `Copy` at all.
 Chapter 31 shows what goes wrong when a `Copy` stand-in lets the wrong code
 compile.
+
+## Preserve these teaching points
+
+Manuscript: [chapter-35-transactions](../../../book-pdf/src/chapter-35-transactions.md).
+
+- Transactions are plain owned structs, not class handles or subclasses. Printing,
+  comparison, and copying arrive through traits rather than inherited field-
+  walking hooks.
+- Debug is the developer field dump; Display is the authored readable format
+  corresponding to convert2string/__str__, and is not derived. Equality policy
+  stays on the transaction, derived or handwritten, rather than being moved into a
+  scoreboard closure.
+- Preserve PartialEq versus Eq and the HashSet coverage-key consequence for
+  floating-point measurements. Use owned grade lists and Rc sharing to make clone
+  depth explicit.
+- The runnable bins and README determine the figure map. Their outputs are
+  goldened, and custom/book-figure-output checks the manuscript’s output too. An
+  intended output change must be run/re-blessed before copying it into the book.
+
+Read this crate’s source and this README before changing a quoted
+figure or behavioral claim; keep the source, figure map, and transcript aligned.
