@@ -12,7 +12,11 @@ path = "src/rustdv_sim.rs"
 
 [dependencies]
 libloading = "0.8"
-rustdv-gpi = { path = "../rustdv-gpi", version = "0.3.0" }
+rustdv-gpi = { path = "../rustdv-gpi", version = "0.3.0", default-features = false }
 
 [dev-dependencies]
+# Unit tests run against the VPI backend, its symbols supplied by the stubs.
+rustdv-gpi = { path = "../rustdv-gpi", version = "0.3.0", features = ["vpi"] }
 rustdv-vpi-stubs = { path = "../rustdv-vpi-stubs", version = "0.3.0" }
+# Implementing a backend in tests/custom_backend.rs.
+rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.3.0" }

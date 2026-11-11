@@ -15,4 +15,6 @@ linkme = "0.3"
 rustdv-sim = { path = "../rustdv-sim", version = "0.3.0" }
 
 [dev-dependencies]
+# Unit tests run against the VPI backend, its symbols supplied by the stubs.
+rustdv-gpi = { path = "../rustdv-gpi", version = "0.3.0", features = ["vpi"] }
 rustdv-vpi-stubs = { path = "../rustdv-vpi-stubs", version = "0.3.0" }

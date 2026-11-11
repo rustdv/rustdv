@@ -137,6 +137,7 @@ name = "rustdv-methodology"
 version = "0.3.0"
 dependencies = [
  "linkme",
+ "rustdv-gpi",
  "rustdv-sim",
  "rustdv-vpi-stubs",
 ]
@@ -157,6 +158,7 @@ version = "0.3.0"
 dependencies = [
  "libloading",
  "rustdv-gpi",
+ "rustdv-gpi-sys",
  "rustdv-vpi-stubs",
 ]
 

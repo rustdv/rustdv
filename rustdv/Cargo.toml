@@ -17,9 +17,15 @@ categories = ["development-tools::testing", "simulation"]
 # Crate root named after the crate, not lib.rs (D29).
 path = "src/rustdv.rs"
 
+[features]
+default = ["vpi"]
+# The VPI backend (see `rustdv_gpi::backend`). Disable default features to
+# run rustdv under another backend.
+vpi = ["rustdv-gpi/vpi"]
+
 [dependencies]
 linkme = "0.3"
-rustdv-gpi = { path = "rustdv-gpi", version = "0.3.0" }
+rustdv-gpi = { path = "rustdv-gpi", version = "0.3.0", default-features = false }
 rustdv-sim = { path = "rustdv-sim", version = "0.3.0" }
 rustdv-methodology = { path = "rustdv-methodology", version = "0.3.0" }
 rustdv-macros = { path = "rustdv-macros", version = "0.3.0" }

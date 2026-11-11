@@ -279,7 +279,8 @@ async fn regression() {
         Ok(t) => t,
         Err(e) => {
             log::error(&e);
-            println!("REGRESSION: FAIL");
+            gpi::console("REGRESSION: FAIL");
+            gpi::report_failure(&e);
             gpi::finish();
             return;
         }
@@ -332,27 +333,37 @@ async fn regression() {
     let failed = results
         .iter()
         .any(|r| matches!(r.outcome, Outcome::Fail { .. }));
-    println!("REGRESSION: {}", if failed { "FAIL" } else { "PASS" });
+    gpi::console(&format!(
+        "REGRESSION: {}",
+        if failed { "FAIL" } else { "PASS" }
+    ));
+    if failed {
+        gpi::report_failure("rustdv regression failed");
+    }
     gpi::finish();
 }
 
 fn print_summary(results: &[TestResult]) {
     // Port of cocotb's summary table shape (regression.py _log_test_summary).
-    println!("{}", "*".repeat(78));
-    println!(
+    let rule = "*".repeat(78);
+    gpi::console(&rule);
+    gpi::console(&format!(
         "** {:<40} {:>8} {:>14}      **",
         "TEST", "STATUS", "SIM TIME (ns)"
-    );
-    println!("{}", "*".repeat(78));
+    ));
+    gpi::console(&rule);
     for r in results {
         let status = match &r.outcome {
             Outcome::Pass => "PASS",
             Outcome::Fail { .. } => "FAIL",
             Outcome::Skip => "SKIP",
         };
-        println!("** {:<40} {:>8} {:>14.2}      **", r.name, status, r.sim_ns);
+        gpi::console(&format!(
+            "** {:<40} {:>8} {:>14.2}      **",
+            r.name, status, r.sim_ns
+        ));
     }
-    println!("{}", "*".repeat(78));
+    gpi::console(&rule);
 }
 
 /// xUnit XML (cocotb: _xunit_reporter.py) — written only if
