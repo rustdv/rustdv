@@ -18,9 +18,15 @@
 //! Thread affinity (§3.4): all types here hold raw pointers and are
 //! therefore `!Send`/`!Sync` — the compiler rejects moving them off the
 //! simulator thread.
+//!
+//! Backends: every simulator access goes through the [`backend::Backend`]
+//! installed on the current thread. By default the simulator loads the
+//! testbench as a VPI module (the `vpi` feature); another host
+//! installs its own backend. The handle and callback API below is the same
+//! for all of them.
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
-use std::ffi::{CStr, CString};
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
@@ -30,13 +36,70 @@ use rustdv_gpi_sys::{self as sys, t_vpi_vecval};
 
 // Test executables need vpi_* symbol definitions (the simulator provides
 // them for the real cdylib) — see rustdv-vpi-stubs.
-#[cfg(test)]
+#[cfg(all(test, feature = "vpi"))]
 use rustdv_vpi_stubs as _;
 
 pub mod value;
 pub use value::{Logic, LogicArray};
 pub mod util;
 pub use util::ToVpiWords;
+
+pub mod backend;
+pub use backend::ObjHandle;
+use backend::{CbData, ObjKind, Reason};
+
+// Private: its operations trust their arguments (see the `Backend` method
+// docs), which only this crate's typed API guarantees.
+#[cfg(feature = "vpi")]
+mod vpi;
+
+impl ObjHandle {
+    fn name(self) -> String {
+        backend::current().name(self)
+    }
+    fn full_name(self) -> String {
+        backend::current().full_name(self)
+    }
+    fn type_desc(self) -> String {
+        backend::current().type_desc(self)
+    }
+    fn get_vector(self, width: u32) -> Result<Cow<'static, [t_vpi_vecval]>, ValueError> {
+        backend::current().get_vector(self, width)
+    }
+    fn put_vector(self, words: &mut [t_vpi_vecval], flags: i32) {
+        backend::current().put_vector(self, words, flags)
+    }
+}
+
+// ===========================================================================
+// Time and control
+// ===========================================================================
+
+/// Current simulation time in simulator precision steps.
+pub fn sim_time_steps() -> u64 {
+    backend::current().sim_time_steps()
+}
+
+/// Simulator time precision as a power of ten (e.g. -9 = 1 ns).
+pub fn time_precision() -> i32 {
+    backend::current().time_precision()
+}
+
+/// End the simulation.
+pub fn finish() {
+    backend::current().finish()
+}
+
+/// Record that the regression failed. A VPI simulator has no pass/fail
+/// verdict of its own; the runner's `REGRESSION:` line carries it.
+pub fn report_failure(msg: &str) {
+    backend::current().report_failure(msg)
+}
+
+/// Write one line of testbench output.
+pub fn console(line: &str) {
+    backend::current().console(line)
+}
 
 // ===========================================================================
 // Errors
@@ -110,35 +173,6 @@ impl std::error::Error for ValueError {}
 // Handles
 // ===========================================================================
 
-/// Raw non-null simulator object handle. Valid for the whole simulation
-/// (invariant 2), hence `Copy`. `!Send` because it wraps a raw pointer.
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct ObjHandle(sys::vpiHandle);
-
-impl ObjHandle {
-    fn new(h: sys::vpiHandle) -> Option<Self> {
-        if h.is_null() {
-            None
-        } else {
-            Some(ObjHandle(h))
-        }
-    }
-    fn get(self, prop: i32) -> i32 {
-        unsafe { sys::vpi_get(prop, self.0) }
-    }
-    fn get_str(self, prop: i32) -> String {
-        // Invariant 3: copy immediately.
-        unsafe {
-            let p = sys::vpi_get_str(prop, self.0);
-            if p.is_null() {
-                String::new()
-            } else {
-                CStr::from_ptr(p).to_string_lossy().into_owned()
-            }
-        }
-    }
-}
-
 /// Any simulator object, classified by type (design-doc §3.3 downcasting).
 #[derive(Copy, Clone)]
 pub enum AnyHandle {
@@ -153,30 +187,17 @@ pub enum AnyHandle {
 
 impl AnyHandle {
     pub fn classify(h: ObjHandle) -> AnyHandle {
-        match h.get(sys::vpiType) {
-            sys::vpiModule => AnyHandle::Hierarchy(HierarchyHandle { h }),
-            sys::vpiRealVar => AnyHandle::Real(RealHandle { h }),
-            sys::vpiStringVar => AnyHandle::String(StringHandle { h }),
-            sys::vpiStructVar => AnyHandle::Struct(AggregateHandle { h }),
-            sys::vpiUnionVar => AnyHandle::Union(AggregateHandle { h }),
-            sys::vpiNet
-            | sys::vpiReg
-            | sys::vpiIntegerVar
-            | sys::vpiPort
-            | sys::vpiMemory
-            | sys::vpiLongIntVar
-            | sys::vpiShortIntVar
-            | sys::vpiIntVar
-            | sys::vpiByteVar
-            | sys::vpiEnumVar
-            | sys::vpiBitVar => {
-                // Signal width is immutable for the lifetime of a VPI
-                // object. Cache it at discovery so every value read/write
-                // does not pay for another vpi_get(vpiSize) crossing.
-                let width = h.get(sys::vpiSize).max(0) as u32;
-                AnyHandle::Logic(LogicHandle { h, width })
-            }
-            _ => AnyHandle::Other(h),
+        match backend::current().kind(h) {
+            ObjKind::Hierarchy => AnyHandle::Hierarchy(HierarchyHandle { h }),
+            // Signal width is immutable for the lifetime of an object. Cache
+            // it at discovery so every value read/write does not pay for
+            // another backend query.
+            ObjKind::Logic { width } => AnyHandle::Logic(LogicHandle { h, width }),
+            ObjKind::Real => AnyHandle::Real(RealHandle { h }),
+            ObjKind::String => AnyHandle::String(StringHandle { h }),
+            ObjKind::Struct => AnyHandle::Struct(AggregateHandle { h }),
+            ObjKind::Union => AnyHandle::Union(AggregateHandle { h }),
+            ObjKind::Other => AnyHandle::Other(h),
         }
     }
 
@@ -194,9 +215,9 @@ impl AnyHandle {
     fn wrong_kind(self, expected: &'static str) -> HandleError {
         let h = self.object();
         HandleError::WrongKind {
-            name: h.get_str(sys::vpiFullName),
+            name: h.full_name(),
             expected,
-            actual: format!("vpiType {}", h.get(sys::vpiType)),
+            actual: h.type_desc(),
         }
     }
 
@@ -250,15 +271,13 @@ impl HierarchyHandle {
     /// instead of reading garbage.
     pub fn null_for_test() -> HierarchyHandle {
         HierarchyHandle {
-            h: ObjHandle(std::ptr::null_mut()),
+            h: ObjHandle::null(),
         }
     }
 
     /// Dynamic child lookup: `dut.child("clk")?` (design-doc OQ-6 lean).
     pub fn child(&self, name: &str) -> Result<AnyHandle, HandleError> {
-        let cname = CString::new(name).expect("NUL in signal name");
-        let h = unsafe { sys::vpi_handle_by_name(cname.as_ptr(), self.h.0) };
-        match ObjHandle::new(h) {
+        match backend::current().child(self.h, name) {
             Some(h) => Ok(AnyHandle::classify(h)),
             None => Err(HandleError::NotFound {
                 name: name.into(),
@@ -273,34 +292,20 @@ impl HierarchyHandle {
     }
 
     pub fn name(&self) -> String {
-        self.h.get_str(sys::vpiName)
+        self.h.name()
     }
     pub fn full_name(&self) -> String {
-        self.h.get_str(sys::vpiFullName)
+        self.h.full_name()
     }
 
     /// Iterate child objects (modules, nets, regs) — serves the
     /// `visit_children` debug-print role at the DUT level.
     pub fn children(&self) -> Vec<AnyHandle> {
-        let mut out = Vec::new();
-        for t in [sys::vpiModule, sys::vpiNet, sys::vpiReg] {
-            unsafe {
-                let it = sys::vpi_iterate(t, self.h.0);
-                if it.is_null() {
-                    continue;
-                }
-                loop {
-                    let c = sys::vpi_scan(it);
-                    if c.is_null() {
-                        break; // scan returning NULL frees the iterator
-                    }
-                    if let Some(h) = ObjHandle::new(c) {
-                        out.push(AnyHandle::classify(h));
-                    }
-                }
-            }
-        }
-        out
+        backend::current()
+            .children(self.h)
+            .into_iter()
+            .map(AnyHandle::classify)
+            .collect()
     }
 
     pub fn real(&self, name: &str) -> Result<RealHandle, HandleError> {
@@ -322,32 +327,16 @@ pub struct RealHandle {
 
 impl RealHandle {
     pub fn name(&self) -> String {
-        self.h.get_str(sys::vpiName)
+        self.h.name()
     }
     pub fn full_name(&self) -> String {
-        self.h.get_str(sys::vpiFullName)
+        self.h.full_name()
     }
     pub fn get(&self) -> Result<f64, ValueError> {
-        let mut value = sys::t_vpi_value {
-            format: sys::vpiRealVal,
-            value: sys::u_vpi_value_union { real: 0.0 },
-        };
-        unsafe {
-            sys::vpi_get_value(self.h.0, &mut value);
-            if value.format != sys::vpiRealVal {
-                return Err(ValueError::Unavailable);
-            }
-            Ok(value.value.real)
-        }
+        backend::current().get_real(self.h)
     }
     pub fn set_now(&self, value: f64) {
-        let mut value = sys::t_vpi_value {
-            format: sys::vpiRealVal,
-            value: sys::u_vpi_value_union { real: value },
-        };
-        unsafe {
-            sys::vpi_put_value(self.h.0, &mut value, std::ptr::null_mut(), sys::vpiNoDelay);
-        }
+        backend::current().put_real(self.h, value);
     }
 }
 
@@ -359,43 +348,16 @@ pub struct StringHandle {
 
 impl StringHandle {
     pub fn name(&self) -> String {
-        self.h.get_str(sys::vpiName)
+        self.h.name()
     }
     pub fn full_name(&self) -> String {
-        self.h.get_str(sys::vpiFullName)
+        self.h.full_name()
     }
     pub fn get(&self) -> Result<String, ValueError> {
-        let mut value = sys::t_vpi_value {
-            format: sys::vpiStringVal,
-            value: sys::u_vpi_value_union {
-                str_: std::ptr::null_mut(),
-            },
-        };
-        unsafe {
-            sys::vpi_get_value(self.h.0, &mut value);
-            if value.format != sys::vpiStringVal {
-                return Err(ValueError::Unavailable);
-            }
-            if value.value.str_.is_null() {
-                return Err(ValueError::Unavailable);
-            }
-            Ok(CStr::from_ptr(value.value.str_)
-                .to_string_lossy()
-                .into_owned())
-        }
+        backend::current().get_string(self.h)
     }
     pub fn set_now(&self, value: &str) -> Result<(), ValueError> {
-        let text = CString::new(value).map_err(|_| ValueError::InteriorNul)?;
-        let mut value = sys::t_vpi_value {
-            format: sys::vpiStringVal,
-            value: sys::u_vpi_value_union {
-                str_: text.as_ptr().cast_mut(),
-            },
-        };
-        unsafe {
-            sys::vpi_put_value(self.h.0, &mut value, std::ptr::null_mut(), sys::vpiNoDelay);
-        }
-        Ok(())
+        backend::current().put_string(self.h, value)
     }
 }
 
@@ -407,16 +369,14 @@ pub struct AggregateHandle {
 
 impl AggregateHandle {
     pub fn name(&self) -> String {
-        self.h.get_str(sys::vpiName)
+        self.h.name()
     }
     pub fn full_name(&self) -> String {
-        self.h.get_str(sys::vpiFullName)
+        self.h.full_name()
     }
     pub fn child(&self, name: &str) -> Result<AnyHandle, HandleError> {
-        let path =
-            CString::new(format!("{}.{}", self.full_name(), name)).expect("NUL in member name");
-        let raw = unsafe { sys::vpi_handle_by_name(path.as_ptr(), std::ptr::null_mut()) };
-        ObjHandle::new(raw)
+        backend::current()
+            .member(self.h, name)
             .map(AnyHandle::classify)
             .ok_or_else(|| HandleError::NotFound {
                 name: name.into(),
@@ -424,16 +384,11 @@ impl AggregateHandle {
             })
     }
     pub fn children(&self) -> Vec<AnyHandle> {
-        let mut out = Vec::new();
-        unsafe {
-            let it = sys::vpi_iterate(sys::vpiMember, self.h.0);
-            if !it.is_null() {
-                while let Some(h) = ObjHandle::new(sys::vpi_scan(it)) {
-                    out.push(AnyHandle::classify(h));
-                }
-            }
-        }
-        out
+        backend::current()
+            .members(self.h)
+            .into_iter()
+            .map(AnyHandle::classify)
+            .collect()
     }
     pub fn signal(&self, name: &str) -> Result<LogicHandle, HandleError> {
         self.child(name)?.as_logic()
@@ -464,10 +419,10 @@ pub struct LogicHandle {
 
 impl LogicHandle {
     pub fn name(&self) -> String {
-        self.h.get_str(sys::vpiName)
+        self.h.name()
     }
     pub fn full_name(&self) -> String {
-        self.h.get_str(sys::vpiFullName)
+        self.h.full_name()
     }
     pub fn size(&self) -> u32 {
         self.width
@@ -475,24 +430,9 @@ impl LogicHandle {
 
     /// Current value as a slice of VPI vector words. `Err` if the simulator
     /// did not supply a vector representation (design-doc §0.6: conversion
-    /// failures are Results, not exceptions). Handles `unsafe` and null pointer
-    /// checks internally.
-    fn get_vpi_words(&self) -> Result<&[sys::t_vpi_vecval], ValueError> {
-        let mut val = sys::t_vpi_value {
-            format: sys::vpiVectorVal,
-            value: sys::u_vpi_value_union {
-                vector: std::ptr::null_mut(),
-            },
-        };
-        unsafe {
-            sys::vpi_get_value(self.h.0, &mut val);
-            let words = val.value.vector;
-            if words.is_null() {
-                return Err(ValueError::Unavailable);
-            }
-            let word_count = self.size().div_ceil(32) as usize;
-            Ok(std::slice::from_raw_parts(words, word_count))
-        }
+    /// failures are Results, not exceptions).
+    fn get_vpi_words(&self) -> Result<Cow<'_, [sys::t_vpi_vecval]>, ValueError> {
+        self.h.get_vector(self.size())
     }
 
     /// Masks one VPI vector word to the signal width. `Err` if any used bit is
@@ -617,50 +557,20 @@ impl LogicHandle {
         }
     }
 
-    /// Resize vector words to the signal width and pass them to
-    /// `vpi_put_value`. Handles unsafe usage internally, i.e. words can be any
-    /// length and the vpi call is still safe.
+    /// Resize vector words to the signal width and hand them to the backend.
+    /// Words can be any length: they are truncated or zero-padded first.
     fn set_vector_words(&self, words: &mut [sys::t_vpi_vecval], flags: i32) {
         let word_count = self.size().div_ceil(32) as usize;
-        if words.len() == word_count {
-            // Word length matches, just mask the final word to the signal width
-            self.mask_vector_words(words);
-            unsafe {
-                let mut vpi_value = sys::t_vpi_value {
-                    format: sys::vpiVectorVal,
-                    value: sys::u_vpi_value_union {
-                        vector: words.as_mut_ptr(),
-                    },
-                };
-                sys::vpi_put_value(self.h.0, &mut vpi_value, std::ptr::null_mut(), flags);
-            }
-        } else if words.len() > word_count {
-            // Word length is greater, truncate to the signal width and mask the
-            // final word
+        if words.len() >= word_count {
+            // Truncate to the signal width and mask the final word
             let words = &mut words[..word_count];
             self.mask_vector_words(words);
-            unsafe {
-                let mut vpi_value = sys::t_vpi_value {
-                    format: sys::vpiVectorVal,
-                    value: sys::u_vpi_value_union {
-                        vector: words.as_mut_ptr(),
-                    },
-                };
-                sys::vpi_put_value(self.h.0, &mut vpi_value, std::ptr::null_mut(), flags);
-            }
+            self.h.put_vector(words, flags);
         } else {
             // Word length is less, pad with zeros to the signal width
             let mut words = words.to_vec();
             words.resize(word_count, sys::t_vpi_vecval::default());
-            unsafe {
-                let mut vpi_value = sys::t_vpi_value {
-                    format: sys::vpiVectorVal,
-                    value: sys::u_vpi_value_union {
-                        vector: words.as_mut_ptr(),
-                    },
-                };
-                sys::vpi_put_value(self.h.0, &mut vpi_value, std::ptr::null_mut(), flags);
-            }
+            self.h.put_vector(&mut words, flags);
         }
     }
 
@@ -763,33 +673,21 @@ impl LogicHandle {
 
 /// All top-level modules in the design.
 pub fn top_modules() -> Vec<HierarchyHandle> {
-    let mut out = Vec::new();
-    unsafe {
-        let it = sys::vpi_iterate(sys::vpiModule, std::ptr::null_mut());
-        if it.is_null() {
-            return out;
-        }
-        loop {
-            let m = sys::vpi_scan(it);
-            if m.is_null() {
-                break;
-            }
-            if let Some(h) = ObjHandle::new(m) {
-                out.push(HierarchyHandle { h });
-            }
-        }
-    }
-    out
+    backend::current()
+        .top_modules()
+        .into_iter()
+        .map(|h| HierarchyHandle { h })
+        .collect()
 }
 
 fn select_top_module(explicit_name: Option<&str>) -> Result<HierarchyHandle, HandleError> {
     if let Some(name) = explicit_name {
-        let cname = CString::new(name).expect("NUL in RUSTDV_TOP");
-        let raw = unsafe { sys::vpi_handle_by_name(cname.as_ptr(), std::ptr::null_mut()) };
-        let h = ObjHandle::new(raw).ok_or_else(|| HandleError::NotFound {
-            name: name.to_owned(),
-            scope: "<top-level>".to_owned(),
-        })?;
+        let h = backend::current()
+            .handle_by_name(name)
+            .ok_or_else(|| HandleError::NotFound {
+                name: name.to_owned(),
+                scope: "<top-level>".to_owned(),
+            })?;
         return AnyHandle::classify(h).as_hierarchy();
     }
 
@@ -810,44 +708,6 @@ pub fn top_module() -> Result<HierarchyHandle, HandleError> {
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty());
     select_top_module(explicit_name.as_deref())
-}
-
-// ===========================================================================
-// Time
-// ===========================================================================
-
-/// Current simulation time in simulator precision steps.
-pub fn sim_time_steps() -> u64 {
-    let mut t = sys::t_vpi_time {
-        type_: sys::vpiSimTime,
-        high: 0,
-        low: 0,
-        real: 0.0,
-    };
-    unsafe { sys::vpi_get_time(std::ptr::null_mut(), &mut t) };
-    ((t.high as u64) << 32) | (t.low as u64)
-}
-
-/// Simulator time precision as a power of ten (e.g. -9 = 1 ns).
-pub fn time_precision() -> i32 {
-    thread_local! {
-        static PREC: Cell<Option<i32>> = const { Cell::new(None) };
-    }
-    PREC.with(|p| match p.get() {
-        Some(v) => v,
-        None => {
-            let v = unsafe { sys::vpi_get(sys::vpiTimePrecision, std::ptr::null_mut()) };
-            p.set(Some(v));
-            v
-        }
-    })
-}
-
-/// End the simulation (vpi_control(vpiFinish)).
-pub fn finish() {
-    unsafe {
-        sys::vpi_control(sys::vpiFinish, 0i32);
-    }
 }
 
 // ===========================================================================
@@ -893,13 +753,16 @@ enum CbKind {
     Recurring,
 }
 
-struct CbShared {
+pub(crate) struct CbShared {
     kind: CbKind,
-    /// Registration handle returned by vpi_register_cb. One-shots remove it
-    /// from inside the trampoline, while it is valid on both supported
+    /// Registration token returned by the backend. One-shots remove it from
+    /// inside the trampoline, while it is valid on both supported VPI
     /// simulators: Icarus reaps the active callback after it returns and
     /// Verilator releases its separately-owned handle object immediately.
-    vpi_h: Cell<sys::vpiHandle>,
+    token: Cell<backend::CbToken>,
+    /// The backend that registered the callback, which removes it: another
+    /// backend may have been installed since.
+    backend: &'static dyn backend::Backend,
     /// True once the C-side Rc reference has been reclaimed (fired one-shot
     /// or removed callback). Guards against double-free.
     released: Cell<bool>,
@@ -932,21 +795,24 @@ impl Drop for CallbackHandle {
         }
         if !self.shared.released.get() {
             self.shared.released.set(true);
-            unsafe {
-                sys::vpi_remove_cb(self.shared.vpi_h.get());
-                // Reclaim the C-side reference.
-                drop(Rc::from_raw(self.raw));
-            }
+            self.shared.backend.remove_cb(self.shared.token.get());
+            // Reclaim the C-side reference.
+            unsafe { drop(Rc::from_raw(self.raw)) };
         }
     }
 }
 
-extern "C" fn trampoline(cb: *mut sys::t_cb_data) -> i32 {
+/// Run the callback behind `ud`, the user data a backend was given at
+/// registration. The trampoline body shared by every backend.
+///
+/// # Safety
+/// `ud` must be null or a pointer from [`register`] whose C-side reference
+/// has not been reclaimed yet.
+pub(crate) unsafe fn dispatch(ud: *const CbShared) {
+    if ud.is_null() {
+        return;
+    }
     unsafe {
-        let ud = (*cb).user_data as *const CbShared;
-        if ud.is_null() {
-            return 0;
-        }
         // Hold our own reference for the duration of the call so that
         // closures dropping the CallbackHandle can't free us mid-flight.
         Rc::increment_strong_count(ud);
@@ -961,7 +827,7 @@ extern "C" fn trampoline(cb: *mut sys::t_cb_data) -> i32 {
                     // callback is still valid on both: Icarus marks it for
                     // self-reaping, while Verilator deletes the retained
                     // VerilatedVpioReasonCb handle.
-                    sys::vpi_remove_cb(shared.vpi_h.get());
+                    shared.backend.remove_cb(shared.token.get());
                     // Reclaim the C-side reference before running user code.
                     drop(Rc::from_raw(ud));
                     if let Some(f) = f
@@ -982,47 +848,26 @@ extern "C" fn trampoline(cb: *mut sys::t_cb_data) -> i32 {
         }
         drop(shared);
     }
-    0
 }
 
 fn register(
     kind: CbKind,
     once: Option<Box<dyn FnOnce()>>,
     repeat: Option<Box<dyn FnMut()>>,
-    reason: i32,
-    obj: sys::vpiHandle,
-    time: Option<sys::t_vpi_time>,
+    reason: Reason,
 ) -> CallbackHandle {
+    let backend = backend::current();
     let shared = Rc::new(CbShared {
         kind,
-        vpi_h: Cell::new(std::ptr::null_mut()),
+        token: Cell::new(0),
+        backend,
         released: Cell::new(false),
         once: RefCell::new(once),
         repeat: RefCell::new(repeat),
     });
     // C-side reference:
     let raw = Rc::into_raw(shared.clone());
-
-    let mut t = time.unwrap_or(sys::t_vpi_time {
-        type_: sys::vpiSuppressTime,
-        high: 0,
-        low: 0,
-        real: 0.0,
-    });
-    // value: NULL — closures read signal values themselves; Icarus rejects
-    // vpiSuppressVal on value-change callbacks ("format 10 not supported").
-    let mut cb = sys::t_cb_data {
-        reason,
-        cb_rtn: Some(trampoline),
-        obj,
-        time: &mut t,
-        value: std::ptr::null_mut(),
-        index: 0,
-        user_data: raw as *mut _,
-    };
-    let vpi_h = unsafe { sys::vpi_register_cb(&mut cb) };
-    assert!(!vpi_h.is_null(), "vpi_register_cb failed (reason {reason})");
-    shared.vpi_h.set(vpi_h);
+    shared.token.set(backend.register_cb(reason, CbData(raw)));
     CallbackHandle {
         shared,
         raw,
@@ -1030,110 +875,45 @@ fn register(
     }
 }
 
-fn simtime(steps: u64) -> sys::t_vpi_time {
-    sys::t_vpi_time {
-        type_: sys::vpiSimTime,
-        high: (steps >> 32) as u32,
-        low: (steps & 0xFFFF_FFFF) as u32,
-        real: 0.0,
-    }
-}
-
 /// One-shot callback after `steps` precision units (cbAfterDelay).
 pub fn register_timer(steps: u64, f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbAfterDelay,
-        std::ptr::null_mut(),
-        Some(simtime(steps)),
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::AfterDelay(steps))
 }
 
 /// Recurring callback on any value change of `sig` (cbValueChange). The
 /// closure reads the signal itself; edge filtering happens in rustdv-sim.
 pub fn register_value_change(sig: LogicHandle, f: Box<dyn FnMut()>) -> CallbackHandle {
-    register(
-        CbKind::Recurring,
-        None,
-        Some(f),
-        sys::cbValueChange,
-        sig.h.0,
-        Some(simtime(0)),
-    )
+    register(CbKind::Recurring, None, Some(f), Reason::ValueChange(sig.h))
 }
 
 /// One-shot callback at the next ReadWrite synch point.
 pub fn register_read_write(f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbReadWriteSynch,
-        std::ptr::null_mut(),
-        Some(simtime(0)),
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::ReadWrite)
 }
 
 /// One-shot callback at the next ReadOnly synch point.
 pub fn register_read_only(f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbReadOnlySynch,
-        std::ptr::null_mut(),
-        Some(simtime(0)),
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::ReadOnly)
 }
 
 /// One-shot callback at the next simulation time step.
 pub fn register_next_sim_time(f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbNextSimTime,
-        std::ptr::null_mut(),
-        None,
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::NextSimTime)
 }
 
 /// One-shot callback at the end of the current simulation time step.
 pub fn register_at_end_of_sim_time(f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbAtEndOfSimTime,
-        std::ptr::null_mut(),
-        Some(simtime(sim_time_steps())),
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::AtEndOfSimTime)
 }
 
 /// One-shot callback at start of simulation (the bootstrap hook).
 pub fn register_start_of_simulation(f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbStartOfSimulation,
-        std::ptr::null_mut(),
-        None,
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::StartOfSimulation)
 }
 
 /// One-shot callback at end of simulation.
 pub fn register_end_of_simulation(f: Box<dyn FnOnce()>) -> CallbackHandle {
-    register(
-        CbKind::OneShot,
-        Some(f),
-        None,
-        sys::cbEndOfSimulation,
-        std::ptr::null_mut(),
-        None,
-    )
+    register(CbKind::OneShot, Some(f), None, Reason::EndOfSimulation)
 }
 
 #[cfg(test)]
@@ -1170,7 +950,7 @@ mod vpi_word_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "vpi"))]
 mod callback_tests {
     use super::*;
     use std::cell::Cell;
@@ -1220,7 +1000,7 @@ mod callback_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "vpi"))]
 mod handle_tests {
     use super::*;
 
@@ -1249,7 +1029,7 @@ mod handle_tests {
                 "0",
             );
             rustdv_vpi_stubs::configure_signal_type(object_type);
-            let signal = AnyHandle::classify(ObjHandle(1usize as sys::vpiHandle))
+            let signal = AnyHandle::classify(unsafe { ObjHandle::from_raw(1) })
                 .as_logic()
                 .unwrap();
             assert_eq!(signal.size(), 64);
@@ -1272,7 +1052,7 @@ mod handle_tests {
         ] {
             rustdv_vpi_stubs::configure_signal_type(object_type);
             assert!(matches!(
-                AnyHandle::classify(ObjHandle(1usize as sys::vpiHandle)),
+                AnyHandle::classify(unsafe { ObjHandle::from_raw(1) }),
                 AnyHandle::Real(_)
                     | AnyHandle::String(_)
                     | AnyHandle::Struct(_)
@@ -1300,8 +1080,8 @@ mod handle_tests {
 
     fn make_signal(width: i32, words: &[sys::t_vpi_vecval], binstr: &str) -> LogicHandle {
         rustdv_vpi_stubs::configure_signal(width, words, binstr);
-        let raw = 1usize as sys::vpiHandle;
-        let AnyHandle::Logic(signal) = AnyHandle::classify(ObjHandle(raw)) else {
+        let AnyHandle::Logic(signal) = AnyHandle::classify(unsafe { ObjHandle::from_raw(1) })
+        else {
             panic!("stub object was not classified as a signal");
         };
         signal

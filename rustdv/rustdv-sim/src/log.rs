@@ -180,7 +180,7 @@ fn console_enabled_for(path: &str) -> bool {
 /// was removed, plus every file handler covering the path.
 fn emit_for(path: &str, line: &str) {
     if console_enabled_for(path) {
-        println!("{line}");
+        rustdv_gpi::console(line);
     }
     TARGET_FILES.with(|t| {
         for (prefix, file) in t.borrow().iter() {
@@ -197,7 +197,7 @@ fn emit_for(path: &str, line: &str) {
 }
 
 fn emit(line: &str) {
-    println!("{line}");
+    rustdv_gpi::console(line);
     LOG_FILE.with(|f| {
         if let Some(file) = f.borrow_mut().as_mut() {
             let _ = writeln!(file, "{line}");

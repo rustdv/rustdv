@@ -10,6 +10,13 @@ repository = "https://github.com/rustdv/rustdv"
 # Crate root named after the crate, not lib.rs (D29).
 path = "src/rustdv_gpi.rs"
 
+[features]
+default = ["vpi"]
+# The VPI backend, used when no other backend is installed. Without it the
+# `vpi_*` entry points are never referenced, so a host embedding rustdv
+# through its own backend links no undefined simulator symbols.
+vpi = []
+
 [dependencies]
 num-bigint = "0.5.1"
 rustdv-gpi-sys = { path = "../rustdv-gpi-sys", version = "0.3.0" }

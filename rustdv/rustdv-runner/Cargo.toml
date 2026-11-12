@@ -12,6 +12,6 @@ path = "src/rustdv_runner.rs"
 
 [dependencies]
 linkme = "0.3"
-rustdv-gpi = { path = "../rustdv-gpi", version = "0.3.0" }
+rustdv-gpi = { path = "../rustdv-gpi", version = "0.3.0", default-features = false }
 rustdv-sim = { path = "../rustdv-sim", version = "0.3.0" }
 rustdv-methodology = { path = "../rustdv-methodology", version = "0.3.0" }
